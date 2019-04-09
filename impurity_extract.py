@@ -1,7 +1,7 @@
 import numpy as np
 import cv2 as cv
 
-img = cv.imread('./tags_png/scan1tag1.png')
+img = cv.imread('./tags_png/scan1tag0.png')
 gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
 ret, thresh = cv.threshold(gray, 0, 255, cv.THRESH_BINARY_INV)
@@ -45,6 +45,4 @@ for impurity in range(2, ret+1):
     blank_image[:, :] = (255, 255, 255)
     blank_image[markers == impurity] = img[markers == impurity]
 
-    cv.imshow('blank ' + str(impurity), blank_image)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+    cv.imwrite("./scan1tag0_impurities/impurity_" + str(impurity) + ".png", blank_image)
