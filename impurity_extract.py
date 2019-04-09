@@ -24,10 +24,6 @@ sure_fg = opening
 # Finding unknown region
 sure_fg = np.uint8(sure_fg)
 unknown = cv.subtract(sure_bg, sure_fg)
-cv.imshow('sure_fg', sure_fg)
-cv.waitKey(0)
-cv.destroyAllWindows()
-
 
 # Marker labelling
 ret, markers = cv.connectedComponents(sure_fg)
