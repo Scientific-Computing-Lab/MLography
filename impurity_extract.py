@@ -1,6 +1,5 @@
 import numpy as np
 import cv2 as cv
-from matplotlib import pyplot as plt
 
 img = cv.imread('./tags_png/scan1tag1.png')
 gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -38,3 +37,14 @@ img[markers == -1] = [0, 0, 255]
 cv.imshow('image', img)
 cv.waitKey(0)
 cv.destroyAllWindows()
+
+print(ret)
+
+for impurity in range(2, ret+1):
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    blank_image[markers == impurity] = img[markers == impurity]
+
+    cv.imshow('blank ' + str(impurity), blank_image)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
