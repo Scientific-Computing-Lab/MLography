@@ -2,6 +2,10 @@ import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
 from scipy import ndimage
+import scipy.spatial.distance as dist
+from pyod.models.knn import KNN
+
+
 
 
 def get_markers(img):
@@ -109,14 +113,118 @@ def normalize_boxes(img, markers, impurities_num):
         cv.imwrite("./scan1tag0_cropped_impurities_reguralized/impurity_" + str(impurity) + 
                    ".png", blank_image)
         
+def save_boxes(img, markers, impurities_num):
+    
+    """
+    boxes[i-2] := (rmin, rmax, cmin, cmax) of impurity i
+    """
+#    boxes = [(-1,-1,-1,-1)] * (impurities_num-1)
+    boxes = np.zeros((impurities_num-1, 4)) # impurities_num-1 elements, each with 4 features
+    
+    for impurity in range(2, impurities_num+1):
+        indx = markers == impurity
+        rmin, rmax, cmin, cmax = bbox(indx)
+        boxes[impurity-2,:] = rmin, rmax, cmin, cmax
         
-    
-    # Show image:
+    return boxes
+
+
+
+"""
+columns = x, rows = y
+"""
+def impurity_dist(imp1, imp2):
 # =============================================================================
-#     plt.imshow(img, cmap='gray')
-#     plt.show()
+#     global imp_boxes
+#     rmin1, rmax1, cmin1, cmax1 = imp_boxes[imp1]
+#     rmin2, rmax2, cmin2, cmax2 = imp_boxes[imp2]
 # =============================================================================
     
-img = cv.imread('./tags_png_cropped/scan1tag0_cropped.png')
-ret, markers = get_markers(img)
-normalize_boxes(img, markers, ret)
+    
+    rmin1, rmax1, cmin1, cmax1 = imp1[:]
+    rmin2, rmax2, cmin2, cmax2 = imp2[:]
+    
+    left = cmax2 < cmin1
+    right = cmax1 < cmin2
+    bottom = rmax2 < rmin1
+    top = rmax1 < rmin2
+    if top and left:
+        return dist.euclidean((cmin1, rmax1), (cmax2, rmin2))
+    elif left and bottom:
+        return dist.euclidean((cmin1, rmin1), (cmax2, rmax2))
+    elif bottom and right:
+        return dist.euclidean((cmax1, rmin1), (cmin2, rmax2))
+    elif right and top:
+        return dist.euclidean((cmax1, rmax1), (cmin2, rmin2))
+    elif left:
+        return cmin1 - cmax2
+    elif right:
+        return cmin2 - cmax1
+    elif bottom:
+        return rmin1 - rmax2
+    elif top:
+        return rmin2 - rmax1
+    else:             # rectangles intersect
+        return 0.
+    
+    
+def check_box_dist():
+    img = cv.imread('./tags_png_cropped/scan1tag0_cropped.png')
+    ret, markers = get_markers(img)
+    imp_boxes = save_boxes(img, markers, ret)
+    
+    # First subplot
+    plt.figure(1)  # declare the figure
+
+    plt.subplot(131)  # 221 -> 1 rows, 2 columns, 1st subplot
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    blank_image[markers == 7+2] = [0, 0, 255]
+    blank_image[markers == 6+2] = [255, 0, 0]   
+    plt.imshow(blank_image)
+    plt.title("dist between 6 and 7 " + str(impurity_dist(imp_boxes[6], imp_boxes[7])))
+
+    plt.subplot(132)  # 221 -> 1 rows, 2 columns, 2nd subplot
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    blank_image[markers == 15+2] = [0, 0, 255]
+    blank_image[markers == 13+2] = [255, 0, 0]
+    plt.imshow(blank_image)
+    plt.title("dist between 15 and 13 " + str(impurity_dist(imp_boxes[15], imp_boxes[13])))
+    
+    plt.subplot(133)  # 221 -> 1 rows, 2 columns, 2nd subplot
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    blank_image[markers == 253+2] = [0, 0, 255]
+    blank_image[markers == 940+2] = [255, 0, 0]
+    plt.imshow(blank_image)
+    plt.title("dist between 253 and 940 " + str(impurity_dist(imp_boxes[253], imp_boxes[940])))
+
+
+    # Plotting
+    plt.subplots_adjust(hspace=0.4)  # make subplots farther from each other.
+    plt.show()
+    
+    
+def main():
+    img = cv.imread('./tags_png_cropped/scan1tag0_cropped.png')
+    ret, markers = get_markers(img)
+    imp_boxes = save_boxes(img, markers, ret)
+    
+    # train kNN detector
+    clf_name = 'KNN'
+    clf = KNN(metric=impurity_dist )
+    clf.fit(imp_boxes)
+    
+    # get the prediction label and outlier scores of the training data
+    y_train_pred = clf.labels_  # binary labels (0: inliers, 1: outliers)
+    y_train_scores = clf.decision_scores_  # raw outlier scores
+    
+    
+    # evaluate and print the results
+    print("\nOn Training Data:")
+
+    
+    
+if __name__== "__main__":
+  check_box_dist()
