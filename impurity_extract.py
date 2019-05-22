@@ -1,9 +1,12 @@
 import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as clrs
+import matplotlib.colorbar as clbr
 from scipy import ndimage
 import scipy.spatial.distance as dist
-from pyod.models.knn import KNN
+# from pyod.models.knn import KNN
 
 
 
@@ -140,7 +143,6 @@ def impurity_dist(imp1, imp2):
 #     rmin2, rmax2, cmin2, cmax2 = imp_boxes[imp2]
 # =============================================================================
     
-    
     rmin1, rmax1, cmin1, cmax1 = imp1[:]
     rmin2, rmax2, cmin2, cmax2 = imp2[:]
     
@@ -173,37 +175,99 @@ def check_box_dist():
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(img, markers, ret)
     
-    # First subplot
-    plt.figure(1)  # declare the figure
+    # # First subplot
+    # plt.figure(1)  # declare the figure
+    #
+    # plt.subplot(131)  # 221 -> 1 rows, 2 columns, 1st subplot
+    # blank_image = np.zeros(img.shape, np.uint8)
+    # blank_image[:, :] = (255, 255, 255)
+    # blank_image[markers == 7+2] = [0, 0, 255]
+    # blank_image[markers == 6+2] = [255, 0, 0]
+    # plt.imshow(blank_image)
+    # plt.title("dist between 6 and 7 " + str(impurity_dist(imp_boxes[6], imp_boxes[7])))
+    #
+    # plt.subplot(132)  # 221 -> 1 rows, 2 columns, 2nd subplot
+    # blank_image = np.zeros(img.shape, np.uint8)
+    # blank_image[:, :] = (255, 255, 255)
+    # blank_image[markers == 15+2] = [0, 0, 255]
+    # blank_image[markers == 13+2] = [255, 0, 0]
+    # plt.imshow(blank_image)
+    # plt.title("dist between 15 and 13 " + str(impurity_dist(imp_boxes[15], imp_boxes[13])))
+    #
+    # plt.subplot(133)  # 221 -> 1 rows, 2 columns, 2nd subplot
+    # blank_image = np.zeros(img.shape, np.uint8)
+    # blank_image[:, :] = (255, 255, 255)
+    # blank_image[markers == 253+2] = [0, 0, 255]
+    # blank_image[markers == 940+2] = [255, 0, 0]
+    # plt.imshow(blank_image)
+    # plt.title("dist between 253 and 940 " + str(impurity_dist(imp_boxes[253], imp_boxes[940])))
+    #
+    #
+    # # Plotting
+    # plt.subplots_adjust(hspace=0.4)  # make subplots farther from each other.
+    # plt.show()
 
-    plt.subplot(131)  # 221 -> 1 rows, 2 columns, 1st subplot
-    blank_image = np.zeros(img.shape, np.uint8)
-    blank_image[:, :] = (255, 255, 255)
-    blank_image[markers == 7+2] = [0, 0, 255]
-    blank_image[markers == 6+2] = [255, 0, 0]   
-    plt.imshow(blank_image)
-    plt.title("dist between 6 and 7 " + str(impurity_dist(imp_boxes[6], imp_boxes[7])))
+    k = 15
 
-    plt.subplot(132)  # 221 -> 1 rows, 2 columns, 2nd subplot
-    blank_image = np.zeros(img.shape, np.uint8)
-    blank_image[:, :] = (255, 255, 255)
-    blank_image[markers == 15+2] = [0, 0, 255]
-    blank_image[markers == 13+2] = [255, 0, 0]
-    plt.imshow(blank_image)
-    plt.title("dist between 15 and 13 " + str(impurity_dist(imp_boxes[15], imp_boxes[13])))
-    
-    plt.subplot(133)  # 221 -> 1 rows, 2 columns, 2nd subplot
-    blank_image = np.zeros(img.shape, np.uint8)
-    blank_image[:, :] = (255, 255, 255)
-    blank_image[markers == 253+2] = [0, 0, 255]
-    blank_image[markers == 940+2] = [255, 0, 0]
-    plt.imshow(blank_image)
-    plt.title("dist between 253 and 940 " + str(impurity_dist(imp_boxes[253], imp_boxes[940])))
+    impurity_kth_neighbor = kth_nn(imp_boxes, img, markers, k)
 
 
-    # Plotting
-    plt.subplots_adjust(hspace=0.4)  # make subplots farther from each other.
+def kth_nn(imp_boxes, img, markers, k):
+    # data structure that holds for each impurity it's k nearest neighbor
+    impurity_kth_neighbor = []
+    impurity_kth_neighbor_and_area = []
+    for impurity in range(imp_boxes.shape[0]):
+        k_nn = [impurity_dist(imp_boxes[impurity], imp_boxes[x]) for x in range(imp_boxes.shape[0]) if x != impurity]
+        k_nn.sort()
+        impurity_kth_neighbor.append(k_nn[k-1])
+
+        impurity_shape = np.argwhere(markers == impurity + 2)
+        imp_area = impurity_shape.shape[0]
+        impurity_kth_neighbor_and_area.append(np.square(imp_area) * k_nn[k-1]**2)
+
+    max_val1 = max(impurity_kth_neighbor)
+    impurity_kth_neighbor = list(map(lambda x: x / max_val1, impurity_kth_neighbor))
+
+    max_val2 = max(impurity_kth_neighbor_and_area)
+    impurity_kth_neighbor_and_area = list(map(lambda x: x / max_val2, impurity_kth_neighbor_and_area))
+
+    # fig = plt.figure(1)
+    blank_image1 = np.zeros(img.shape, np.uint8)
+    blank_image2 = np.zeros(img.shape, np.uint8)
+    blank_image1[:, :] = (255, 255, 255)
+    blank_image2[:, :] = (255, 255, 255)
+    jet = plt.get_cmap('jet')
+    for impurity in range(imp_boxes.shape[0]):
+
+        color1 = jet(impurity_kth_neighbor[impurity])
+        # impurity + 2 because first is background, and because it is 1-based and then switched to 0-based.
+        blank_image1[markers == impurity + 2] = (color1[0] * 255, color1[1] * 255, color1[2] * 255)
+
+        color2 = jet(impurity_kth_neighbor_and_area[impurity])
+        # impurity + 2 because first is background, and because it is 1-based and then switched to 0-based.
+        blank_image2[markers == impurity + 2] = (color2[0] * 255, color2[1] * 255, color2[2] * 255)
+
+    plt.subplot(121)
+    plt.imshow(blank_image1)
+    plt.colorbar()
+    plt.clim(0, 1)
+    plt.title("impurity colored according to their anomalies, with k = {}".format(k))
+
+    # cmap = cm.jet
+    # norm = clrs.Normalize(vmin=5, vmax=10)
+    #
+    # cb1 = clbr.ColorbarBase(ax, cmap=cmap, norm=norm)
+    # cb1.set_label('Some Units')
+
+    plt.subplot(122)
+    plt.imshow(blank_image2)
+    plt.colorbar()
+    plt.clim(0, 1)
+    plt.title("anomaly score ^ 2 * impurity_area, with k = {}".format(k))
+
     plt.show()
+    return impurity_kth_neighbor
+
     
     
 def main():
@@ -212,13 +276,13 @@ def main():
     imp_boxes = save_boxes(img, markers, ret)
     
     # train kNN detector
-    clf_name = 'KNN'
-    clf = KNN(metric=impurity_dist )
-    clf.fit(imp_boxes)
+    # clf_name = 'KNN'
+    # clf = KNN(metric=impurity_dist )
+    # clf.fit(imp_boxes)
     
     # get the prediction label and outlier scores of the training data
-    y_train_pred = clf.labels_  # binary labels (0: inliers, 1: outliers)
-    y_train_scores = clf.decision_scores_  # raw outlier scores
+    # y_train_pred = clf.labels_  # binary labels (0: inliers, 1: outliers)
+    # y_train_scores = clf.decision_scores_  # raw outlier scores
     
     
     # evaluate and print the results
