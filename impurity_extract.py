@@ -200,6 +200,7 @@ def check_box_dist():
 
 def kth_nn(imp_boxes, img, markers, k_list):
     # data structure that holds for each impurity it's k nearest neighbor
+    # it looks like this: first index: the k nearest neighbor (corresponding to k_list), second index is the impurity.
 
     impurity_neighbors = {}
     impurity_neighbors_and_area = {}
@@ -220,7 +221,8 @@ def kth_nn(imp_boxes, img, markers, k_list):
         for k in k_list:
             impurity_neighbors[k].append(k_nn[k-1])
         # impurity_kth_neighbor.append(k_nn[k-1])
-            impurity_neighbors_and_area[k].append(np.square(imp_area) * k_nn[k - 1] ** 2)
+            impurity_neighbors_and_area[k].append(imp_area ** 2 * k_nn[k - 1] ** 2)
+            # impurity_neighbors_and_area[k].append(imp_area * k_nn[k - 1] ** 2)
 
     print("finished calculating ktn_nn")
 
@@ -230,8 +232,12 @@ def kth_nn(imp_boxes, img, markers, k_list):
         max_val1 = max(impurity_neighbors[k])
         impurity_neighbors[k] = list(map(lambda x: x / max_val1, impurity_neighbors[k]))
 
+        print("For k={}, Median before normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
+        print("For k={}, Mean before normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
         max_val2 = max(impurity_neighbors_and_area[k])
         impurity_neighbors_and_area[k] = list(map(lambda x: x / max_val2, impurity_neighbors_and_area[k]))
+        print("For k={}, Median after normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
+        print("For k={}, Mean before normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
 
     # fig = plt.figure(1)
     blank_image2 = {}
@@ -277,15 +283,83 @@ def kth_nn(imp_boxes, img, markers, k_list):
     plt.show()
     # return impurity_kth_neighbor
 
+
+def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
+    # data structure that holds for each impurity it's k nearest neighbor
+    # it looks like this: first index: the k nearest neighbor (corresponding to k_list), second index is the impurity.
+
+    impurity_neighbors_and_area = {}
+
+    for k in k_list:
+        impurity_neighbors_and_area[k] = []
+
+    for impurity in indices:
+        k_nn = [(imp_area[impurity] / imp_area[x]) ** 2 * impurity_dist(imp_boxes[impurity], imp_boxes[x])
+                for x in indices if x != impurity]
+        k_nn.sort()
+
+        for k in k_list:
+            impurity_neighbors_and_area[k].append(imp_area[impurity] * k_nn[k - 1] ** 2)
+    print("finished calculating ktn_nn")
+
+    for k in k_list:
+
+        print("For k={}, Median before normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
+        print("For k={}, Mean before normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
+        max_val2 = max(impurity_neighbors_and_area[k])
+        impurity_neighbors_and_area[k] = list(map(lambda x: x / max_val2, impurity_neighbors_and_area[k]))
+        print("For k={}, Median after normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
+        print("For k={}, Mean after normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
+
+    # fig = plt.figure(1)
+    blank_image2 = {}
+
+    for k in k_list:
+        blank_image2[k] = np.zeros(img.shape, np.uint8)
+        blank_image2[k][:, :] = (255, 255, 255)
+    jet = plt.get_cmap('jet')
+    for impurity in indices:
+        for k in k_list:
+            color2 = jet(impurity_neighbors_and_area[k][impurity])
+            blank_image2[k][markers == impurity + 2] = (color2[0] * 255, color2[1] * 255, color2[2] * 255)
+
+    for i in range(len(k_list)):
+        plt.figure(i)
+        plt.imshow(blank_image2[k_list[i]])
+        plt.colorbar()
+        plt.clim(0, 2)
+        plt.title("anomaly score ^ 2 * impurity_area, with k = {}".format(k_list[i]))
+
+    plt.show()
+    # return impurity_kth_neighbor
+
+
+def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
+    imp_area = []
+    indices = []
+    for impurity in range(imp_boxes.shape[0]):
+        impurity_shape = np.argwhere(markers == impurity + 2)
+        area = impurity_shape.shape[0]
+        imp_area.append(area)
+        if area > min_area:
+            indices.append(impurity)
+    return imp_area, indices
+
+
     
-def main():
-    img = cv.imread('./tags_png_cropped/scan1tag1_cropped.png')
+def main(img_path):
+    img = cv.imread(img_path)
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(img, markers, ret)
 
-    k = [10, 20, 40]
-    kth_nn(imp_boxes, img, markers, k)
+    areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
+
+    k = [10, 15, 20, 40, 50]
+    weighted_kth_nn(imp_boxes, img, markers, k, areas, indices)
 
 
 if __name__ == "__main__":
-    main()
+    main('./tags_png_cropped/scan1tag-47.png')
+    main('./tags_png_cropped/scan2tag-5.png')
+    main('./tags_png_cropped/scan3tag-34.png')
+    main('./tags_png_cropped/scan4tag-12.png')
