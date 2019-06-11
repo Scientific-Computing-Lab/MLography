@@ -291,7 +291,7 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
     impurity_neighbors_and_area = {}
 
     for k in k_list:
-        impurity_neighbors_and_area[k] = []
+        impurity_neighbors_and_area[k] = np.zeros(imp_boxes.shape[0])
 
     for impurity in indices:
         k_nn = [(imp_area[impurity] / imp_area[x]) ** 2 * impurity_dist(imp_boxes[impurity], imp_boxes[x])
@@ -299,7 +299,7 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
         k_nn.sort()
 
         for k in k_list:
-            impurity_neighbors_and_area[k].append(imp_area[impurity] * k_nn[k - 1] ** 2)
+            impurity_neighbors_and_area[k][impurity] = imp_area[impurity] * k_nn[k - 1] ** 2
     print("finished calculating ktn_nn")
 
     for k in k_list:
@@ -344,7 +344,6 @@ def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
         if area > min_area:
             indices.append(impurity)
     return imp_area, indices
-
 
     
 def main(img_path):
