@@ -306,6 +306,13 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
 
         print("For k={}, Median before normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
         print("For k={}, Mean before normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
+
+        impurity_neighbors_and_area[k][indices] = np.maximum(np.log(impurity_neighbors_and_area[k][indices]), 0.00001)
+
+        plt.figure(k)
+        plt.hist(impurity_neighbors_and_area[k][indices])
+
+
         max_val2 = max(impurity_neighbors_and_area[k])
         impurity_neighbors_and_area[k] = list(map(lambda x: x / max_val2, impurity_neighbors_and_area[k]))
         print("For k={}, Median after normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
@@ -313,6 +320,7 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
 
     # fig = plt.figure(1)
     blank_image2 = {}
+    plt.show()
 
     for k in k_list:
         blank_image2[k] = np.zeros(img.shape, np.uint8)
@@ -328,7 +336,9 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
         plt.imshow(blank_image2[k_list[i]])
         plt.colorbar()
         plt.clim(0, 2)
-        plt.title("anomaly score ^ 2 * impurity_area, with k = {}".format(k_list[i]))
+        plt.title("the kthNN is taken from" + r"$imp$" + " , when the distance to each other impurity" + r"$oth$" +
+                  "is calculated in the following manner: " + r"$\log ((\frac{S(imp)}{S(oth)})^2 * box-dist(imp, oth))$"
+                  + ", with k = {}".format(k_list[i]))
 
     plt.show()
     # return impurity_kth_neighbor
@@ -358,7 +368,7 @@ def main(img_path):
 
 
 if __name__ == "__main__":
-    main('./tags_png_cropped/scan1tag-47.png')
-    main('./tags_png_cropped/scan2tag-5.png')
+    #main('./tags_png_cropped/scan1tag-47.png')
+    #main('./tags_png_cropped/scan2tag-5.png')
     main('./tags_png_cropped/scan3tag-34.png')
-    main('./tags_png_cropped/scan4tag-12.png')
+    #main('./tags_png_cropped/scan4tag-12.png')
