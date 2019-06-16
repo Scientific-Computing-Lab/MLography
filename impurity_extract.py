@@ -304,19 +304,19 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
 
     for k in k_list:
 
-        print("For k={}, Median before normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
-        print("For k={}, Mean before normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
-
         impurity_neighbors_and_area[k][indices] = np.maximum(np.log(impurity_neighbors_and_area[k][indices]), 0.00001)
+
+        scores = impurity_neighbors_and_area[k][indices]
+        scores = (scores - np.min(scores)) / np.ptp(scores)
+        scores = np.maximum(scores - 2 * np.std(scores), 0.00001)
+
+        impurity_neighbors_and_area[k][indices] = (scores - np.min(scores)) / np.ptp(scores)
 
         plt.figure(k)
         plt.hist(impurity_neighbors_and_area[k][indices])
 
-
         max_val2 = max(impurity_neighbors_and_area[k])
         impurity_neighbors_and_area[k] = list(map(lambda x: x / max_val2, impurity_neighbors_and_area[k]))
-        print("For k={}, Median after normalization: {}".format(k, np.median(impurity_neighbors_and_area[k])))
-        print("For k={}, Mean after normalization: {}".format(k, np.mean(impurity_neighbors_and_area[k])))
 
     # fig = plt.figure(1)
     blank_image2 = {}
@@ -333,9 +333,9 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
 
     for i in range(len(k_list)):
         plt.figure(i)
-        plt.imshow(blank_image2[k_list[i]])
+        plt.imshow(blank_image2[k_list[i]], cmap='jet')
         plt.colorbar()
-        plt.clim(0, 2)
+        plt.clim(0, 1)
         plt.title("the kthNN is taken from" + r"$imp$" + " , when the distance to each other impurity" + r"$oth$" +
                   "is calculated in the following manner: " + r"$\log ((\frac{S(imp)}{S(oth)})^2 * box-dist(imp, oth))$"
                   + ", with k = {}".format(k_list[i]))
@@ -363,12 +363,14 @@ def main(img_path):
 
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
 
-    k = [10, 15, 20, 40, 50]
+    k = [5, 10, 15, 20, 40, 50]
+    #k = [50]
     weighted_kth_nn(imp_boxes, img, markers, k, areas, indices)
 
 
 if __name__ == "__main__":
     #main('./tags_png_cropped/scan1tag-47.png')
     #main('./tags_png_cropped/scan2tag-5.png')
+
     main('./tags_png_cropped/scan3tag-34.png')
-    #main('./tags_png_cropped/scan4tag-12.png')
+    main('./tags_png_cropped/scan4tag-12.png')
