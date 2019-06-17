@@ -7,6 +7,7 @@ import matplotlib.colorbar as clbr
 from scipy import ndimage
 import scipy.spatial.distance as dist
 # from pyod.models.knn import KNN
+from smallestenclosingcircle import make_circle
 
 
 def get_markers(img):
@@ -69,16 +70,15 @@ def bbox(img):
     cmax += 1
     rmax += 1
 
-    return rmin, rmax, cmin, cmax
+    return int(rmin), int(rmax), int(cmin), int(cmax)
 
 
-def normalize_boxes(img, markers, impurities_num):
+def normalize_boxes(img, markers, imp_boxes, indices):
     dr_max = 0
     dc_max = 0
 
-    for impurity in range(2, impurities_num+1):
-        indx = markers == impurity
-        rmin, rmax, cmin, cmax = bbox(indx)
+    for impurity in indices:
+        rmin, rmax, cmin, cmax = imp_boxes[impurity]
         dr = rmax - rmin
         dc = cmax - cmin
         if dr > dr_max:
@@ -86,35 +86,31 @@ def normalize_boxes(img, markers, impurities_num):
         if dc > dc_max:
             dc_max = dc
             
-    dr_max *= 2
-    dc_max *= 2
+    dr_max = int(dr_max * 2)
+    dc_max = int(dc_max * 2)
+
+    print("Starting to write normalized impurities")
     
-    for impurity in range(2, impurities_num+1):
-        indx = markers == impurity
-        rmin, rmax, cmin, cmax = bbox(indx)
-        dr = rmax - rmin
-        dc = cmax - cmin
+    for impurity in indices:
+        rmin, rmax, cmin, cmax = imp_boxes[impurity]
+        dr = int(rmax - rmin)
+        dc = int(cmax - cmin)
         
-        pad_r = (dr_max - dr) // 2
-        pad_c = (dc_max - dc) // 2
+        pad_r = int((dr_max - dr) // 2)
+        pad_c = int((dc_max - dc) // 2)
         
         blank_image = np.zeros((dr_max, dc_max, 3), np.uint8)
         blank_image[:, :] = (255, 255, 255)
         
         image = np.zeros(img.shape, np.uint8)
         image[:, :] = (255, 255, 255)
-        image[markers == impurity] = img[markers == impurity]
-        blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[rmin:rmax, cmin:cmax]
-# =============================================================================
-#         plt.imshow(blank_image, cmap='gray')
-#         plt.show()
-#         plt.waitforbuttonpress()
-# =============================================================================
-        cv.imwrite("./scan1tag0_cropped_impurities_reguralized/impurity_" + str(impurity) + 
+        image[markers == impurity+2] = img[markers == impurity+2]
+        blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[int(rmin):int(rmax), int(cmin):int(cmax)]
+        cv.imwrite("./scan4tag12_cropped_impurities_reguralized/impurity_" + str(impurity) +
                    ".png", blank_image)
 
 
-def save_boxes(img, markers, impurities_num):
+def save_boxes(markers, impurities_num):
     
     """
     boxes[i-2] := (rmin, rmax, cmin, cmax) of impurity i
@@ -164,7 +160,7 @@ def impurity_dist(imp1, imp2):
 def check_box_dist():
     img = cv.imread('./tags_png_cropped/scan1tag0_cropped.png')
     ret, markers = get_markers(img)
-    imp_boxes = save_boxes(img, markers, ret)
+    imp_boxes = save_boxes(markers, ret)
     
     # First subplot
     plt.figure(1)  # declare the figure
@@ -197,6 +193,8 @@ def check_box_dist():
     plt.subplots_adjust(hspace=0.4)  # make subplots farther from each other.
     plt.show()
 
+
+# Should not be used. Use weighted_kth_nn instead.
 
 def kth_nn(imp_boxes, img, markers, k_list):
     # data structure that holds for each impurity it's k nearest neighbor
@@ -355,22 +353,45 @@ def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
             indices.append(impurity)
     return imp_area, indices
 
-    
-def main(img_path):
+
+def get_circle_impurity_score(markers, imp_boxes, areas, indices):
+    scores = np.infty(imp_boxes.shape[0])
+    for impurity in indices:
+        impurity_shape = np.argwhere(markers == impurity + 2)
+        circle = make_circle(impurity_shape)
+        #scores[impurity] = (circle area - my area) / my area
+
+
+
+
+
+def spatial_anomaly_detection(img_path):
     img = cv.imread(img_path)
     ret, markers = get_markers(img)
-    imp_boxes = save_boxes(img, markers, ret)
+    imp_boxes = save_boxes(markers, ret)
 
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
 
     k = [5, 10, 15, 20, 40, 50]
-    #k = [50]
+    # k = [50]
     weighted_kth_nn(imp_boxes, img, markers, k, areas, indices)
+
+
+def save_normalized_impurities(img_path):
+    img = cv.imread(img_path)
+    ret, markers = get_markers(img)
+    imp_boxes = save_boxes(markers, ret)
+    areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
+    normalize_boxes(img, markers, imp_boxes, indices)
+
+    
+def main(img_path):
+    save_normalized_impurities(img_path)
 
 
 if __name__ == "__main__":
     #main('./tags_png_cropped/scan1tag-47.png')
     #main('./tags_png_cropped/scan2tag-5.png')
 
-    main('./tags_png_cropped/scan3tag-34.png')
+    #main('./tags_png_cropped/scan3tag-34.png')
     main('./tags_png_cropped/scan4tag-12.png')
