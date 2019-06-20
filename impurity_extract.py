@@ -73,7 +73,7 @@ def bbox(img):
     return int(rmin), int(rmax), int(cmin), int(cmax)
 
 
-def normalize_boxes(img, markers, imp_boxes, indices):
+def normalize_boxes(img, markers, imp_boxes, indices, write_to_files=False):
     dr_max = 0
     dc_max = 0
 
@@ -90,6 +90,7 @@ def normalize_boxes(img, markers, imp_boxes, indices):
     dc_max = int(dc_max * 2)
 
     print("Starting to write normalized impurities")
+    normalized = np.zeros(imp_boxes.shape[0])
     
     for impurity in indices:
         rmin, rmax, cmin, cmax = imp_boxes[impurity]
@@ -106,8 +107,11 @@ def normalize_boxes(img, markers, imp_boxes, indices):
         image[:, :] = (255, 255, 255)
         image[markers == impurity+2] = img[markers == impurity+2]
         blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[int(rmin):int(rmax), int(cmin):int(cmax)]
-        cv.imwrite("./scan4tag12_cropped_impurities_reguralized/impurity_" + str(impurity) +
-                   ".png", blank_image)
+        normalized[impurity] = blank_image
+        if write_to_files:
+            cv.imwrite("./scan4tag12_cropped_impurities_reguralized/impurity_" + str(impurity) +
+                       ".png", blank_image)
+    return normalized
 
 
 def save_boxes(markers, impurities_num):
@@ -355,14 +359,35 @@ def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
 
 
 def get_circle_impurity_score(markers, imp_boxes, areas, indices):
-    scores = np.infty(imp_boxes.shape[0])
+    scores = np.full(imp_boxes.shape[0], np.infty)
     for impurity in indices:
         impurity_shape = np.argwhere(markers == impurity + 2)
         circle = make_circle(impurity_shape)
-        #scores[impurity] = (circle area - my area) / my area
+        circle_area = np.pi * circle[2] ** 2
+        scores[impurity] = (circle_area - areas[impurity]) / circle_area
+    plt.figure("Circle scores")
+    plt.hist(scores[indices])
+    plt.show()
+    scores[indices] = (scores[indices] - np.min(scores[indices])) / np.ptp(scores[indices])
+    return scores
 
 
+def color_close_to_cirlce(img, markers, indices, scores):
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    jet = plt.get_cmap('jet')
+    for impurity in indices:
+        color = jet(scores[impurity])
+        blank_image[markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
 
+    plt.figure("Colored Circles")
+    plt.imshow(blank_image, cmap='jet')
+    plt.colorbar()
+    plt.clim(0, 1)
+    plt.title("The color is determined by " + r"$S(circle) - S(impurity)$" + " , where circle is the minimal circle "
+                                                                             "that covers the impurity")
+
+    plt.show()
 
 
 def spatial_anomaly_detection(img_path):
@@ -382,7 +407,9 @@ def save_normalized_impurities(img_path):
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(markers, ret)
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
-    normalize_boxes(img, markers, imp_boxes, indices)
+    #normalized_impurities = normalize_boxes(img, markers, imp_boxes, indices)
+    scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
+    color_close_to_cirlce(img, markers, indices, scores)
 
     
 def main(img_path):
