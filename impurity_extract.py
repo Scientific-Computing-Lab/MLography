@@ -368,17 +368,30 @@ def get_circle_impurity_score(markers, imp_boxes, areas, indices):
     plt.figure("Circle scores")
     plt.hist(scores[indices])
     plt.show()
-    scores[indices] = (scores[indices] - np.min(scores[indices])) / np.ptp(scores[indices])
+    #scores[indices] = (scores[indices] - np.min(scores[indices])) / np.ptp(scores[indices])
     return scores
 
 
-def color_close_to_cirlce(img, markers, indices, scores):
+def color_close_to_cirlce(img, markers, indices, scores, areas):
     blank_image = np.zeros(img.shape, np.uint8)
     blank_image[:, :] = (255, 255, 255)
     jet = plt.get_cmap('jet')
+
+    num_under_thresh = 0
+
     for impurity in indices:
-        color = jet(scores[impurity])
-        blank_image[markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
+        #color = jet(scores[impurity])
+        #blank_image[markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
+
+        #show only under threshold:
+        if scores[impurity] <= 0.3 and areas[impurity] > 50:
+            num_under_thresh += 1
+            color = jet(scores[impurity])
+            blank_image[markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
+        else:
+            blank_image[markers == impurity + 2] = (0, 0, 0)
+    print("under threshold: {}".format(num_under_thresh))
+
 
     plt.figure("Colored Circles")
     plt.imshow(blank_image, cmap='jet')
@@ -409,7 +422,7 @@ def save_normalized_impurities(img_path):
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
     #normalized_impurities = normalize_boxes(img, markers, imp_boxes, indices)
     scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
-    color_close_to_cirlce(img, markers, indices, scores)
+    color_close_to_cirlce(img, markers, indices, scores, areas)
 
     
 def main(img_path):
@@ -422,3 +435,5 @@ if __name__ == "__main__":
 
     #main('./tags_png_cropped/scan3tag-34.png')
     main('./tags_png_cropped/scan4tag-12.png')
+    #main('./tags_png_cropped/scan2tag-29.png')
+    #main('./tags_png_cropped/scan1tag-32.png')
