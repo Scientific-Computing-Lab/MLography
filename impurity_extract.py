@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -6,7 +7,8 @@ import matplotlib.colors as clrs
 import matplotlib.colorbar as clbr
 from scipy import ndimage
 import scipy.spatial.distance as dist
-# from pyod.models.knn import KNN
+# from pyod.models.auto_encoder import AutoEncoder
+# from pyod.utils.data import evaluate_print
 from smallestenclosingcircle import make_circle
 
 
@@ -63,54 +65,77 @@ def write_impurities(img, markers, impurities_num):
 def bbox(img):
     rows = np.any(img, axis=1)
     cols = np.any(img, axis=0)
-    rmin, rmax = np.where(rows)[0][[0, -1]]
-    cmin, cmax = np.where(cols)[0][[0, -1]]
-    cmin -= 1
-    rmin -= 1
-    cmax += 1
-    rmax += 1
+    imp_rows = np.where(rows)[0]
+    imp_cols = np.where(cols)[0]
+    if len(imp_rows) > 0 and len(imp_cols):
+        rmin, rmax = imp_rows[[0, -1]]
+        cmin, cmax = imp_cols[[0, -1]]
+        cmin -= 1
+        rmin -= 1
+        cmax += 1
+        rmax += 1
+    else:
+        rmin, rmax, cmin, cmax = 0, 0, 0, 0
 
     return int(rmin), int(rmax), int(cmin), int(cmax)
 
 
-def normalize_boxes(img, markers, imp_boxes, indices, write_to_files=False):
-    dr_max = 0
-    dc_max = 0
+def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_max=300, dc_max=300,
+                           write_to_files=False, scan_name="", number_of_impurities_to_write=None, write_circles=True):
+    if dr_max is None or dc_max is None:
+        dr_max = 0
+        dc_max = 0
 
-    for impurity in indices:
-        rmin, rmax, cmin, cmax = imp_boxes[impurity]
-        dr = rmax - rmin
-        dc = cmax - cmin
-        if dr > dr_max:
-            dr_max = dr
-        if dc > dc_max:
-            dc_max = dc
-            
+        for impurity in indices:
+            rmin, rmax, cmin, cmax = imp_boxes[impurity]
+            dr = rmax - rmin
+            dc = cmax - cmin
+            if dr > dr_max:
+                dr_max = dr
+            if dc > dc_max:
+                dc_max = dc
+
     dr_max = int(dr_max * 2)
     dc_max = int(dc_max * 2)
 
     print("Starting to write normalized impurities")
     normalized = np.zeros(imp_boxes.shape[0])
-    
+
+    number_of_written_impurities = 0
     for impurity in indices:
-        rmin, rmax, cmin, cmax = imp_boxes[impurity]
-        dr = int(rmax - rmin)
-        dc = int(cmax - cmin)
-        
-        pad_r = int((dr_max - dr) // 2)
-        pad_c = int((dc_max - dc) // 2)
-        
-        blank_image = np.zeros((dr_max, dc_max, 3), np.uint8)
-        blank_image[:, :] = (255, 255, 255)
-        
-        image = np.zeros(img.shape, np.uint8)
-        image[:, :] = (255, 255, 255)
-        image[markers == impurity+2] = img[markers == impurity+2]
-        blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[int(rmin):int(rmax), int(cmin):int(cmax)]
-        normalized[impurity] = blank_image
-        if write_to_files:
-            cv.imwrite("./scan4tag12_cropped_impurities_reguralized/impurity_" + str(impurity) +
-                       ".png", blank_image)
+        # take only circle impurities
+        if (write_circles and scores[impurity] <= 0.2 and areas[impurity] > 50) or \
+                (not write_circles and scores[impurity] > 0.6 and areas[impurity] > 50):
+            # take only non-circle impurities as anomalies
+
+            rmin, rmax, cmin, cmax = imp_boxes[impurity]
+            dr = int(rmax - rmin)
+            dc = int(cmax - cmin)
+            if 2*dr > dr_max or 2*dc > dc_max:
+                # skip too big impurities
+                continue
+
+            pad_r = int((dr_max - dr) // 2)
+            pad_c = int((dc_max - dc) // 2)
+
+            blank_image = np.zeros((dr_max, dc_max, 3), np.uint8)
+            blank_image[:, :] = (255, 255, 255)
+
+            image = np.zeros(img.shape, np.uint8)
+            image[:, :] = (255, 255, 255)
+            image[markers == impurity+2] = img[markers == impurity+2]
+            blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[int(rmin):int(rmax), int(cmin):int(cmax)]
+            # normalized[impurity] = blank_image
+            if write_to_files:
+                string_score = str(scores[impurity])
+                string_score.replace('.', '_')
+                cv.imwrite("./ae_data/all_regularized_impurities_anomaly/" + string_score +
+                           scan_name + "_impurity_" + str(impurity) +".png", blank_image)
+
+            number_of_written_impurities += 1
+            if number_of_impurities_to_write is not None and \
+                    number_of_written_impurities >= number_of_impurities_to_write:
+                return normalized
     return normalized
 
 
@@ -365,10 +390,10 @@ def get_circle_impurity_score(markers, imp_boxes, areas, indices):
         circle = make_circle(impurity_shape)
         circle_area = np.pi * circle[2] ** 2
         scores[impurity] = (circle_area - areas[impurity]) / circle_area
-    plt.figure("Circle scores")
-    plt.hist(scores[indices])
-    plt.show()
-    #scores[indices] = (scores[indices] - np.min(scores[indices])) / np.ptp(scores[indices])
+    # plt.figure("Circle scores")
+    # plt.hist(scores[indices])
+    # plt.show()
+
     return scores
 
 
@@ -424,7 +449,62 @@ def save_normalized_impurities(img_path):
     scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
     color_close_to_cirlce(img, markers, indices, scores, areas)
 
-    
+
+def find_max_dims_from_dir(dir_path):
+    scans_dir = os.listdir(dir_path)
+
+    total_dr_max = 0
+    total_dc_max = 0
+
+    for img_path in scans_dir:
+        img = cv.imread(dir_path + img_path)
+        ret, markers = get_markers(img)
+        imp_boxes = save_boxes(markers, ret)
+        areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
+
+        imp_dr_max = 0
+        imp_dc_max = 0
+        for impurity in indices:
+            rmin, rmax, cmin, cmax = imp_boxes[impurity]
+            dr = rmax - rmin
+            dc = cmax - cmin
+            if dr > imp_dr_max:
+                imp_dr_max = dr
+            if dc > imp_dc_max:
+                imp_dc_max = dc
+        if img_path != "scan1tag-12.png":  # ignore this scan, because dr_max is too big for some reason
+            total_dr_max = max(total_dr_max, imp_dr_max)
+            total_dc_max = max(total_dc_max, imp_dc_max)
+        print("imp_dr_max= {}, imp_dc_max= {}, total_dr_max= {}, total_dc_max= {} finished: {}".format(imp_dr_max,
+                                                                                                       imp_dc_max,
+                                                                                                       total_dr_max,
+                                                                                                       total_dc_max,
+                                                                                                       img_path))
+
+
+    dr_max = int(total_dr_max * 2)
+    dc_max = int(total_dc_max * 2)
+
+    print("dr_max= {}, dc_max= {} (multiplied by 2), finished!".format(dr_max, dc_max))
+
+    # total_dr_max= 3237.0, total_dc_max= 494.0
+
+
+def normalize_all_impurities(dir_path):
+
+    scans_dir = os.listdir(dir_path)
+    for img_path in scans_dir:
+        img_name = os.path.splitext(os.path.basename(img_path))[0]
+        img = cv.imread(dir_path + img_path)
+        ret, markers = get_markers(img)
+        imp_boxes = save_boxes(markers, ret)
+        areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
+        scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
+        normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, write_to_files=True, scan_name=img_name
+                               , write_circles=False)
+
+
+
 def main(img_path):
     save_normalized_impurities(img_path)
 
@@ -434,6 +514,10 @@ if __name__ == "__main__":
     #main('./tags_png_cropped/scan2tag-5.png')
 
     #main('./tags_png_cropped/scan3tag-34.png')
-    main('./tags_png_cropped/scan4tag-12.png')
+    #main('./tags_png_cropped/scan4tag-12.png')
     #main('./tags_png_cropped/scan2tag-29.png')
     #main('./tags_png_cropped/scan1tag-32.png')
+    # find_max_dims_from_dir('./tags_png_cropped/')
+
+    normalize_all_impurities('./tags_png_cropped/')
+
