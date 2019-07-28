@@ -10,7 +10,7 @@ import numpy as np
 def load_train(train_normal_path, train_anomaly_path):
     train = []
     train_labels = []
-    files = glob.iglob (train_normal_path +"/*.png")  # normal impurities
+    files = glob.iglob(train_normal_path +"/*.png")  # normal impurities
     for myFile in files:
         image = cv2.imread(myFile)
         train.append(image)
