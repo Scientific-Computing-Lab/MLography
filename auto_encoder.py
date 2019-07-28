@@ -174,7 +174,7 @@ def fixed_generator(generator):
 #                               validation_steps=8,
 #                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
-history = model.fit_generator(train_it, epochs=2, validation_data=val_it,
+history = model.fit_generator(train_it, epochs=60, validation_data=val_it,
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
