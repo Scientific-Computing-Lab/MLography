@@ -10,8 +10,8 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 # base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
 TRAIN_DIR = "./ae_data/data/"
-HEIGHT = 75
-WIDTH = 75
+HEIGHT = 600
+WIDTH = 600
 BATCH_SIZE = 64
 
 from keras.preprocessing.image import ImageDataGenerator
@@ -19,10 +19,15 @@ from keras.preprocessing.image import ImageDataGenerator
 datagen = ImageDataGenerator(rescale=1./255)
 # datagen = ImageDataGenerator()
 # prepare an iterators for each dataset
-train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
-                                       class_mode="binary", batch_size=BATCH_SIZE)
-val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
-                                     class_mode="binary", batch_size=BATCH_SIZE)
+# train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+#                                        class_mode="binary", batch_size=BATCH_SIZE)
+# val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+#                                      class_mode="binary", batch_size=BATCH_SIZE)
+
+train_it = datagen.flow_from_directory('ae_data/data/train/', target_size=(HEIGHT, WIDTH),
+                                       class_mode=None, batch_size=BATCH_SIZE)
+val_it = datagen.flow_from_directory('ae_data/data/validation/', target_size=(HEIGHT, WIDTH),
+                                     class_mode=None, batch_size=BATCH_SIZE)
 # confirm the iterator works
 
 # batchX, batchy = train_it.next()
@@ -43,31 +48,28 @@ else:
 
 def autoencoder():
     input_img = Input(shape=input_shape)  # adapt this if using `channels_first` image data format
-    # input_img = Input(shape=(256, 256, 3))  # adapt this if using `channels_first` image data format
-
-    # total_pixels = HEIGHT * WIDTH * 3
-    #
-    # flat_input = Flatten()(input_img)  # turn image to vector.
-    conv1 = Conv2D(3*32, (3, 3), activation='relu', padding='same')(input_img)
-    pool1 = MaxPooling2D((2, 2), padding='same')(conv1)
-    conv2 = Conv2D(3*64, (3, 3), activation='relu', padding='same')(pool1)
-    pool2 = MaxPooling2D((2, 2), padding='same')(conv2)
-    conv3 = Conv2D(3*128, (3, 3), activation='relu', padding='same')(pool2)
-    encoded = MaxPooling2D((2, 2), padding='same')(conv3)
+    x = Conv2D(3*16, (3, 3), activation='relu', padding='same')(input_img)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
+    encoded = MaxPooling2D((2, 2), padding='same')(x)
 
     # at this point the representation is (4, 4, 8) i.e. 128-dimensional
 
-    conv4 = Conv2D(3*128, (3, 3), activation='relu', padding='same')(encoded)
-    up1 = UpSampling2D((2, 2))(conv4)
-    conv5 = Conv2D(3*64, (3, 3), activation='relu', padding='same')(up1)
-    up2 = UpSampling2D((2, 2))(conv5)
-    conv6 = Conv2D(3*32, (3, 3), activation='relu')(up2)
-    up3 = UpSampling2D((2, 2))(conv6)
-    decoded = Conv2D(3*1, (3, 3), activation='sigmoid', padding='same')(up3)
+    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(encoded)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(3*16, (3, 3), activation='relu')(x)
+    x = UpSampling2D((2, 2))(x)
+    decoded = Conv2D(3*1, (3, 3), activation='sigmoid', padding='same')(x)
 
     # output = Reshape((WIDTH, HEIGHT, 3))(decoded)
     ae = Model(input_img, decoded)
-    ae.compile(optimizer='adadelta', loss='binary_crossentropy')
+    optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    ae.compile(optimizer=optimizer, loss='binary_crossentropy')
+    # ae.compile(optimizer='adadelta', loss='binary_crossentropy')
     return ae
 
 
@@ -152,31 +154,34 @@ from keras.callbacks import TensorBoard
 #                 callbacks=[TensorBoard(log_dir='/tmp/autoencoder')])
 
 # model = get_model_regular_net()
-model = VGG19(weights=None, include_top=False, input_shape=(WIDTH, HEIGHT, 3), classes=2)
-last = model.output
 
-x = Flatten()(last)
-preds = Dense(2, activation='softmax')(x)
+# model = VGG19(weights=None, include_top=False, input_shape=(WIDTH, HEIGHT, 3), classes=2)
+# last = model.output
+#
+# x = Flatten()(last)
+# preds = Dense(2, activation='softmax')(x)
+#
+# model = Model(model.input, preds)
+# optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+# model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
+#               metrics=['accuracy'])
 
-model = Model(model.input, preds)
-optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
+model = autoencoder()
 
 
 def fixed_generator(generator):
     for batch in generator:
-        y_hot = to_categorical(batch[1])
-        yield (batch[0], y_hot)
+        # y_hot = to_categorical(batch[1])
+        yield (batch, batch)
 
 
-# history = model.fit_generator(fixed_generator(train_it), epochs=2, validation_data=fixed_generator(val_it),
-#                               validation_steps=8,
-#                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
-
-history = model.fit_generator(train_it, epochs=100, validation_data=val_it,
+history = model.fit_generator(fixed_generator(train_it), epochs=1000, validation_data=fixed_generator(val_it),
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
+
+# history = model.fit_generator(train_it, epochs=100, validation_data=val_it,
+#                               validation_steps=8,
+#                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
 # test_it_normal = datagen.flow_from_directory('ae_data/data/test_normal/', target_size=(HEIGHT, WIDTH),
 #                                       class_mode=None, batch_size=BATCH_SIZE)
