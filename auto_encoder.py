@@ -19,20 +19,22 @@ from keras.preprocessing.image import ImageDataGenerator
 datagen = ImageDataGenerator(rescale=1./255)
 # datagen = ImageDataGenerator()
 # prepare an iterators for each dataset
-train_it = datagen.flow_from_directory('ae_data/data/train/', target_size=(HEIGHT, WIDTH),
-                                       class_mode=None, batch_size=BATCH_SIZE)
-val_it = datagen.flow_from_directory('ae_data/data/validation/', target_size=(HEIGHT, WIDTH),
-                                     class_mode=None, batch_size=BATCH_SIZE)
+train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+                                       class_mode="binary", batch_size=BATCH_SIZE)
+val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+                                     class_mode="binary", batch_size=BATCH_SIZE)
 # confirm the iterator works
 
 # batchX, batchy = train_it.next()
 # print('Batch shape=%s, min=%.3f, max=%.3f' % (batchX.shape, batchX.min(), batchX.max()))
 
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout, Activation
 from keras.models import Model, Sequential
+from keras.applications import VGG19
 from keras import backend as K
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
+from keras.utils.np_utils import to_categorical
 
 if K.image_data_format() == 'channels_first':
     input_shape = (3, WIDTH, HEIGHT)
@@ -126,6 +128,19 @@ def get_model_autoencoder():
     return autoencoder
 
 
+def get_model_regular_net():
+    input_img = Input(shape=input_shape, name="input_img")  # adapt this if using `channels_first` image data format
+    x = Conv2D(20, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
+    x = MaxPooling2D((2, 2), strides=(2, 2), padding='same')(x)
+    x = Flatten()(x)
+    x = Dense(500, activation='relu')(x)
+    result = Dense(2, activation='softmax')(x)
+
+    model = Model(input_img, result)
+    optimizer = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy')
+    return model
+
 
 from keras.callbacks import TensorBoard
 
@@ -136,15 +151,30 @@ from keras.callbacks import TensorBoard
 #                 validation_data=(x_test, x_test),
 #                 callbacks=[TensorBoard(log_dir='/tmp/autoencoder')])
 
-model = get_model_autoencoder()
+# model = get_model_regular_net()
+model = VGG19(weights=None, include_top=False, input_shape=(WIDTH, HEIGHT, 3), classes=2)
+last = model.output
+
+x = Flatten()(last)
+preds = Dense(2, activation='softmax')(x)
+
+model = Model(model.input, preds)
+optimizer = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
 
 
 def fixed_generator(generator):
     for batch in generator:
-        yield (batch, batch)
+        y_hot = to_categorical(batch[1])
+        yield (batch[0], y_hot)
 
 
-history = model.fit_generator(fixed_generator(train_it), epochs=50, validation_data=fixed_generator(val_it),
+# history = model.fit_generator(fixed_generator(train_it), epochs=2, validation_data=fixed_generator(val_it),
+#                               validation_steps=8,
+#                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
+
+history = model.fit_generator(train_it, epochs=2, validation_data=val_it,
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
@@ -155,8 +185,8 @@ test_it_anomaly = datagen.flow_from_directory('ae_data/data/test_anomaly/', targ
                                       class_mode=None, batch_size=BATCH_SIZE)
 
 
-loss_normal = model.evaluate_generator(fixed_generator(test_it_normal), steps=24)
-loss_anomaly = model.evaluate_generator(fixed_generator(test_it_anomaly), steps=24)
+loss_normal = model.evaluate_generator(test_it_normal, steps=24)
+loss_anomaly = model.evaluate_generator(test_it_anomaly, steps=24)
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
