@@ -159,7 +159,7 @@ x = Flatten()(last)
 preds = Dense(2, activation='softmax')(x)
 
 model = Model(model.input, preds)
-optimizer = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
@@ -174,19 +174,22 @@ def fixed_generator(generator):
 #                               validation_steps=8,
 #                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
-history = model.fit_generator(train_it, epochs=60, validation_data=val_it,
+history = model.fit_generator(train_it, epochs=100, validation_data=val_it,
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
-test_it_normal = datagen.flow_from_directory('ae_data/data/test_normal/', target_size=(HEIGHT, WIDTH),
-                                      class_mode=None, batch_size=BATCH_SIZE)
+# test_it_normal = datagen.flow_from_directory('ae_data/data/test_normal/', target_size=(HEIGHT, WIDTH),
+#                                       class_mode=None, batch_size=BATCH_SIZE)
+#
+# test_it_anomaly = datagen.flow_from_directory('ae_data/data/test_anomaly/', target_size=(HEIGHT, WIDTH),
+#                                       class_mode=None, batch_size=BATCH_SIZE)
 
-test_it_anomaly = datagen.flow_from_directory('ae_data/data/test_anomaly/', target_size=(HEIGHT, WIDTH),
-                                      class_mode=None, batch_size=BATCH_SIZE)
+test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', target_size=(HEIGHT, WIDTH),
+                                      class_mode="binary", batch_size=BATCH_SIZE)
 
 
-loss_normal = model.evaluate_generator(test_it_normal, steps=24)
-loss_anomaly = model.evaluate_generator(test_it_anomaly, steps=24)
+# loss_normal = model.evaluate_generator(test_it_normal, steps=24)
+loss_combined = model.evaluate_generator(test_it_combined, steps=24)
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
