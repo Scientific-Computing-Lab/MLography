@@ -65,15 +65,16 @@ def autoencoder():
     # x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
 
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3*32, (3, 3), activation='relu', padding='same')(x)
     encoded = MaxPooling2D((2, 2), padding='same')(x)
 
-    x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(encoded)
+    x = Conv2D(3*16, (3, 3), activation='relu', padding='same')(encoded)
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(3*32, (3, 3), activation='relu')(x)
     x = UpSampling2D((2, 2))(x)
 
     # x = Conv2D(3 * 64, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3 * 64, (3, 3), activation='relu', padding='same')(x)
     x = Conv2D(3 * 32, (3, 3), activation='relu', padding='same')(x)
     x = Conv2D(3 * 16, (3, 3), activation='relu', padding='same')(x)
 
