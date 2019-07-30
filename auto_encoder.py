@@ -14,8 +14,8 @@ import numpy as np
 #                       input_shape=(HEIGHT, WIDTH, 3))
 # base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
-HEIGHT = 100
-WIDTH = 100
+HEIGHT = 75
+WIDTH = 75
 BATCH_SIZE = 64
 EPOCHS_NUM = 1000
 
@@ -62,7 +62,7 @@ def autoencoder():
     # maybe too much
     # x = Conv2D(3*128, (5, 5), activation='relu', padding='same')(x)
 
-    # x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
 
     x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(x)
