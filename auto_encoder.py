@@ -10,8 +10,8 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 # base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
 TRAIN_DIR = "./ae_data/data/"
-HEIGHT = 600
-WIDTH = 600
+HEIGHT = 75
+WIDTH = 75
 BATCH_SIZE = 64
 
 from keras.preprocessing.image import ImageDataGenerator
@@ -210,6 +210,8 @@ test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', t
 # loss_normal = model.evaluate_generator(test_it_normal, steps=24)
 loss_combined = model.evaluate_generator(fixed_generator(test_it_combined), steps=24)
 print(loss_combined)
+model.save("model.h5")
+print("Saved model to disk")
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
