@@ -5,4 +5,4 @@ ae_data/all_regularized_impurities_anomaly_over0.6/
 ae_data/all_regularized_impurities_normal/
 ae_data/data_anomaly/
 ae_data/data_normal/
-
+model.h5

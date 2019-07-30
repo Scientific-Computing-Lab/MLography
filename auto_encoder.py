@@ -1,18 +1,23 @@
-from load_data import *
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.8
+set_session(tf.Session(config=config))
 
+import numpy as np
 
-import os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+# import os
+# os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 # base_model = ResNet50(weights='imagenet',
 #                       include_top=False,
 #                       input_shape=(HEIGHT, WIDTH, 3))
 # base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
-TRAIN_DIR = "./ae_data/data/"
-HEIGHT = 75
-WIDTH = 75
+HEIGHT = 600
+WIDTH = 600
 BATCH_SIZE = 64
+EPOCHS_NUM = 1000
 
 from keras.preprocessing.image import ImageDataGenerator
 # create generator
@@ -47,18 +52,30 @@ else:
     input_shape = (WIDTH, HEIGHT, 3)
 
 def autoencoder():
-    input_img = Input(shape=input_shape)  # adapt this if using `channels_first` image data format
-    x = Conv2D(3*16, (3, 3), activation='relu', padding='same')(input_img)
+    input_img = Input(shape=input_shape)
+
+    # encode with a deep net
+    x = Conv2D(3*16, (5, 5), activation='relu', padding='same')(input_img)
+    x = Conv2D(3*32, (5, 5), activation='relu', padding='same')(x)
+    x = Conv2D(3*64, (5, 5), activation='relu', padding='same')(x)
+
+    # maybe too much
+    # x = Conv2D(3*128, (5, 5), activation='relu', padding='same')(x)
+
+    x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(x)
     encoded = MaxPooling2D((2, 2), padding='same')(x)
 
-    # at this point the representation is (4, 4, 8) i.e. 128-dimensional
+    x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(encoded)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(3*128, (3, 3), activation='relu')(x)
+    x = UpSampling2D((2, 2))(x)
 
-    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(encoded)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(3*16, (3, 3), activation='relu')(x)
-    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(3 * 64, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3 * 32, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(3 * 16, (3, 3), activation='relu', padding='same')(x)
+
     decoded = Conv2D(3*1, (3, 3), activation='sigmoid', padding='same')(x)
 
     x = Flatten()(decoded)
@@ -70,7 +87,7 @@ def autoencoder():
     # output = Reshape((WIDTH, HEIGHT, 3))(decoded)
     ae = Model(input_img, result)
     optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    ae.compile(optimizer=optimizer, loss='binary_crossentropy')
+    ae.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
     # ae.compile(optimizer='adadelta', loss='binary_crossentropy')
     return ae
 
@@ -172,6 +189,11 @@ model = autoencoder()
 
 
 def fixed_generator(generator):
+    """
+    Modifies the data generator, such that normal data will get itself as label, and anomal data will get blank image
+    as label. By that, the network learns to reconstruct successfully normal impurities, and will fail to reconstruct
+    anomal impurities.
+    """
     for batch in generator:
         fixed_x = np.empty(shape=batch[0].shape, dtype="float32")
         fixed_y = np.empty(shape=batch[0].shape, dtype="float32")
@@ -180,16 +202,14 @@ def fixed_generator(generator):
             fixed_x[data_pice_counter] = x
             if y == 0:  # anomaly, give blank image as label. Thus, the auto encoder won't be able to reconstruct.
                 blank = np.full(fill_value=1, shape=x.shape, dtype="float32")
-                # yield(x, blank)
                 fixed_y[data_pice_counter] = blank
             else: # normal, give the input image as label so the auto encoder will be able to reconstruct.
-                # yield (x, x)
                 fixed_y[data_pice_counter] = x
             data_pice_counter += 1
         yield (fixed_x, fixed_y)
 
 
-history = model.fit_generator(fixed_generator(train_it), epochs=1000, validation_data=fixed_generator(val_it),
+history = model.fit_generator(fixed_generator(train_it), epochs=EPOCHS_NUM, validation_data=fixed_generator(val_it),
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
@@ -208,23 +228,26 @@ test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', t
 
 
 # loss_normal = model.evaluate_generator(test_it_normal, steps=24)
-loss_combined = model.evaluate_generator(fixed_generator(test_it_combined), steps=24)
-print(loss_combined)
+score = model.evaluate_generator(fixed_generator(test_it_combined), steps=24)
+print("Loss: ", score[0], "Accuracy: ", score[1])
 model.save("model.h5")
 print("Saved model to disk")
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
     import matplotlib.pyplot as plt
-    # acc = history.history['acc']
-    #val_acc = history.history['val_acc']
+    acc = history.history['acc']
+    val_acc = history.history['val_acc']
     loss = history.history['loss']
     val_loss = history.history['val_loss']
     epochs = range(len(loss))
 
-    # plt.plot(epochs, acc, 'r.')
-    #plt.plot(epochs, val_acc, 'r')
-    # plt.title('Training and validation accuracy')
+    plt.figure()
+    plt.plot(epochs, acc, 'r.')
+    plt.plot(epochs, val_acc, 'r')
+    plt.title('Training and validation accuracy')
+    plt.show()
+    plt.savefig('acc_vs_epochs.png')
 
     plt.figure()
     plt.plot(epochs, loss, 'r.')
