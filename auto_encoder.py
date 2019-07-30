@@ -1,8 +1,8 @@
-import tensorflow as tf
-from keras.backend.tensorflow_backend import set_session
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.8
-set_session(tf.Session(config=config))
+# import tensorflow as tf
+# from keras.backend.tensorflow_backend import set_session
+# config = tf.ConfigProto()
+# config.gpu_options.per_process_gpu_memory_fraction = 0.8
+# set_session(tf.Session(config=config))
 
 import numpy as np
 
@@ -62,7 +62,7 @@ def autoencoder():
     # maybe too much
     # x = Conv2D(3*128, (5, 5), activation='relu', padding='same')(x)
 
-    x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
+    # x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
 
     x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(3*64, (3, 3), activation='relu', padding='same')(x)
