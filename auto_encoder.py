@@ -24,10 +24,10 @@ datagen = ImageDataGenerator(rescale=1./255)
 # val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
 #                                      class_mode="binary", batch_size=BATCH_SIZE)
 
-train_it = datagen.flow_from_directory('ae_data/data/train/', target_size=(HEIGHT, WIDTH),
-                                       class_mode=None, batch_size=BATCH_SIZE)
-val_it = datagen.flow_from_directory('ae_data/data/validation/', target_size=(HEIGHT, WIDTH),
-                                     class_mode=None, batch_size=BATCH_SIZE)
+train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+                                       class_mode="binary", batch_size=BATCH_SIZE)
+val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+                                     class_mode="binary", batch_size=BATCH_SIZE)
 # confirm the iterator works
 
 # batchX, batchy = train_it.next()
@@ -51,22 +51,24 @@ def autoencoder():
     x = Conv2D(3*16, (3, 3), activation='relu', padding='same')(input_img)
     x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
     encoded = MaxPooling2D((2, 2), padding='same')(x)
 
     # at this point the representation is (4, 4, 8) i.e. 128-dimensional
 
     x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(encoded)
     x = UpSampling2D((2, 2))(x)
-    x = Conv2D(3*8, (3, 3), activation='relu', padding='same')(x)
-    x = UpSampling2D((2, 2))(x)
     x = Conv2D(3*16, (3, 3), activation='relu')(x)
     x = UpSampling2D((2, 2))(x)
     decoded = Conv2D(3*1, (3, 3), activation='sigmoid', padding='same')(x)
 
+    x = Flatten()(decoded)
+    x = Dense(500, activation='relu')(x)
+    x = Dense(3*WIDTH*HEIGHT, activation='softmax')(x)
+    result = Reshape(input_shape)(x)
+
+
     # output = Reshape((WIDTH, HEIGHT, 3))(decoded)
-    ae = Model(input_img, decoded)
+    ae = Model(input_img, result)
     optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     ae.compile(optimizer=optimizer, loss='binary_crossentropy')
     # ae.compile(optimizer='adadelta', loss='binary_crossentropy')
@@ -171,8 +173,20 @@ model = autoencoder()
 
 def fixed_generator(generator):
     for batch in generator:
-        # y_hot = to_categorical(batch[1])
-        yield (batch, batch)
+        fixed_x = np.empty(shape=batch[0].shape, dtype="float32")
+        fixed_y = np.empty(shape=batch[0].shape, dtype="float32")
+        data_pice_counter = 0
+        for (x, y) in zip(batch[0], batch[1]):
+            fixed_x[data_pice_counter] = x
+            if y == 0:  # anomaly, give blank image as label. Thus, the auto encoder won't be able to reconstruct.
+                blank = np.full(fill_value=1, shape=x.shape, dtype="float32")
+                # yield(x, blank)
+                fixed_y[data_pice_counter] = blank
+            else: # normal, give the input image as label so the auto encoder will be able to reconstruct.
+                # yield (x, x)
+                fixed_y[data_pice_counter] = x
+            data_pice_counter += 1
+        yield (fixed_x, fixed_y)
 
 
 history = model.fit_generator(fixed_generator(train_it), epochs=1000, validation_data=fixed_generator(val_it),
@@ -194,28 +208,29 @@ test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', t
 
 
 # loss_normal = model.evaluate_generator(test_it_normal, steps=24)
-loss_combined = model.evaluate_generator(test_it_combined, steps=24)
+loss_combined = model.evaluate_generator(fixed_generator(test_it_combined), steps=24)
+print(loss_combined)
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
     import matplotlib.pyplot as plt
-    acc = history.history['acc']
+    # acc = history.history['acc']
     #val_acc = history.history['val_acc']
-    #loss = history.history['loss']
-    #val_loss = history.history['val_loss']
-    epochs = range(len(acc))
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(len(loss))
 
-    plt.plot(epochs, acc, 'r.')
+    # plt.plot(epochs, acc, 'r.')
     #plt.plot(epochs, val_acc, 'r')
-    plt.title('Training and validation accuracy')
+    # plt.title('Training and validation accuracy')
 
-    # plt.figure()
-    # plt.plot(epochs, loss, 'r.')
-    # plt.plot(epochs, val_loss, 'r-')
-    # plt.title('Training and validation loss')
+    plt.figure()
+    plt.plot(epochs, loss, 'r.')
+    plt.plot(epochs, val_loss, 'r-')
+    plt.title('Training and validation loss')
     plt.show()
 
-    plt.savefig('acc_vs_epochs.png')
+    plt.savefig('loss_vs_epochs.png')
 
 plot_training(history)
 
