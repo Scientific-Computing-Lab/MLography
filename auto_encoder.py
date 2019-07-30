@@ -14,8 +14,8 @@ import numpy as np
 #                       input_shape=(HEIGHT, WIDTH, 3))
 # base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
-HEIGHT = 300
-WIDTH = 300
+HEIGHT = 150
+WIDTH = 150
 BATCH_SIZE = 64
 EPOCHS_NUM = 1000
 
