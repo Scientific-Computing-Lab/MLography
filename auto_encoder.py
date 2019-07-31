@@ -187,7 +187,7 @@ from keras.callbacks import TensorBoard
 # model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
 #               metrics=['accuracy'])
 
-model = autoencoder()
+model = get_model_regular_net()
 
 
 def fixed_generator(generator):
