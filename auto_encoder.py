@@ -161,7 +161,7 @@ def get_model_regular_net():
 
     model = Model(input_img, result)
     optimizer = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy')
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 
@@ -211,13 +211,13 @@ def fixed_generator(generator):
         yield (fixed_x, fixed_y)
 
 
-history = model.fit_generator(fixed_generator(train_it), epochs=EPOCHS_NUM, validation_data=fixed_generator(val_it),
-                              validation_steps=8,
-                              steps_per_epoch=16, workers=8, use_multiprocessing=True)
-
-# history = model.fit_generator(train_it, epochs=100, validation_data=val_it,
+# history = model.fit_generator(fixed_generator(train_it), epochs=EPOCHS_NUM, validation_data=fixed_generator(val_it),
 #                               validation_steps=8,
 #                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
+
+history = model.fit_generator(train_it, epochs=EPOCHS_NUM, validation_data=val_it,
+                              validation_steps=8,
+                              steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
 # test_it_normal = datagen.flow_from_directory('ae_data/data/test_normal/', target_size=(HEIGHT, WIDTH),
 #                                       class_mode=None, batch_size=BATCH_SIZE)
