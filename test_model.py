@@ -3,6 +3,7 @@ from keras.preprocessing import image
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+#from imagenet_utils import preprocess_input, decode_predictions
 
 
 def load_image(img_path, show=True):
@@ -29,10 +30,15 @@ model.compile(loss='binary_crossentropy',
               metrics=['accuracy'])
 
 # load a single image
-new_image = load_image(anomaly_imp)
+new_image_anomaly = load_image(anomaly_imp)
+new_image_normal = load_image(normal_imp)
 
 # check prediction
-pred = model.predict(new_image)
+pred_a = model.predict(new_image_anomaly)
+pred_n = model.predict(new_image_normal)
 
 # print prediction
-print(pred)
+print('Predicted anomaly:', pred_a)
+print('Predicted normal:', pred_n)
+
+
