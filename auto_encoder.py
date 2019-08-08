@@ -17,7 +17,7 @@ import numpy as np
 HEIGHT = 100
 WIDTH = 100
 BATCH_SIZE = 64
-EPOCHS_NUM = 100
+EPOCHS_NUM = 500
 
 from keras.preprocessing.image import ImageDataGenerator
 # create generator
@@ -154,9 +154,11 @@ def get_model_autoencoder():
 def get_model_regular_net():
     input_img = Input(shape=input_shape, name="input_img")  # adapt this if using `channels_first` image data format
     x = Conv2D(16, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
-    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = Conv2D(64, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(128, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = MaxPooling2D((2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = Flatten()(x)
     x = Dense(500, activation='relu')(x)
     result = Dense(2, activation='softmax')(x)
@@ -232,7 +234,7 @@ test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', t
 
 
 # loss_normal = model.evaluate_generator(test_it_normal, steps=24)
-score = model.evaluate_generator(fixed_generator(test_it_combined), steps=24)
+score = model.evaluate_generator(test_it_combined, steps=24)
 print("Loss: ", score[0], "Accuracy: ", score[1])
 model.save("model.h5")
 print("Saved model to disk")
