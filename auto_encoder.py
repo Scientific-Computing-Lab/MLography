@@ -17,7 +17,7 @@ import numpy as np
 HEIGHT = 100
 WIDTH = 100
 BATCH_SIZE = 64
-EPOCHS_NUM = 1000
+EPOCHS_NUM = 100
 
 from keras.preprocessing.image import ImageDataGenerator
 # create generator
@@ -153,7 +153,9 @@ def get_model_autoencoder():
 
 def get_model_regular_net():
     input_img = Input(shape=input_shape, name="input_img")  # adapt this if using `channels_first` image data format
-    x = Conv2D(20, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
+    x = Conv2D(16, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(64, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = MaxPooling2D((2, 2), strides=(2, 2), padding='same')(x)
     x = Flatten()(x)
     x = Dense(500, activation='relu')(x)
