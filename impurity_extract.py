@@ -2,17 +2,15 @@ import os
 import numpy as np
 import cv2 as cv
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import matplotlib.colors as clrs
-import matplotlib.colorbar as clbr
-from scipy import ndimage
 import scipy.spatial.distance as dist
-# from pyod.models.auto_encoder import AutoEncoder
-# from pyod.utils.data import evaluate_print
 from smallestenclosingcircle import make_circle
 
 
 def get_markers(img):
+    """
+    Get the impurities arranged with unique indices from an image (img).
+    Applies image processing.
+    """
     image = img.copy()
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
@@ -21,7 +19,6 @@ def get_markers(img):
     # noise removal
     kernel = np.ones((3, 3), np.uint8)
     opening = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel, iterations=1)
-    #opening = cv.morphologyEx(opening, cv.MORPH_ERODE, kernel, iterations=1)
     # sure background area
     sure_bg = cv.dilate(opening, kernel, iterations=3)
     # Finding sure foreground area
@@ -44,15 +41,15 @@ def get_markers(img):
     
     markers = cv.watershed(image, markers)
     image[markers == -1] = [0, 0, 255]
-    
-    # plt.imshow(image, cmap='gray')
-    # plt.show()
-    
+
     print(ret)
     return ret, markers
     
     
 def write_impurities(img, markers, impurities_num):
+    """
+    Writes the impurities such that all the image is blank but the impurity itself
+    """
     for impurity in range(2, impurities_num+1):
         blank_image = np.zeros(img.shape, np.uint8)
         blank_image[:, :] = (255, 255, 255)
@@ -63,6 +60,9 @@ def write_impurities(img, markers, impurities_num):
 
 
 def bbox(img):
+    """
+    Get the bounding box of an impurity in an image such that all of it is blank but the impurity itself.
+    """
     rows = np.any(img, axis=1)
     cols = np.any(img, axis=0)
     imp_rows = np.where(rows)[0]
@@ -82,6 +82,22 @@ def bbox(img):
 
 def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_max=300, dc_max=300,
                            write_to_files=False, scan_name="", number_of_impurities_to_write=None, write_circles=True):
+    """
+    normalize the impurity images into a fixed size, and standardize the impurities to be in the center.
+    :param img: original image
+    :param markers: the markers from get_markers function
+    :param imp_boxes: the bounding boxes of the impurities
+    :param areas: the ares of the impurities
+    :param indices: the indices of the significant impurities (the ones with a not too-small size)
+    :param scores: the anomaly scores of the impurities. used for writing the score to the name of the file
+    :param dr_max: optional, the maximum difference of rows (height) of the impurity that is tolerated
+    :param dc_max: optional, the maximum difference of columns (width) of the impurity that is tolerated
+    :param write_to_files: True - write the impurities to files, False - do not write.
+    :param scan_name: optional - the name of the scan.
+    :param number_of_impurities_to_write: optional - maximum impurities allowed to be written
+    :param write_circles: True - if writing impurities that are closed to circles is desired.
+                          False - for writing anomaly impurities (not closed to circles)
+    """
     if dr_max is None or dc_max is None:
         dr_max = 0
         dc_max = 0
@@ -140,8 +156,8 @@ def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_m
 
 
 def save_boxes(markers, impurities_num):
-    
     """
+    Saves the bounding boxes
     boxes[i-2] := (rmin, rmax, cmin, cmax) of impurity i
     """
 #    boxes = [(-1,-1,-1,-1)] * (impurities_num-1)
@@ -157,6 +173,7 @@ def save_boxes(markers, impurities_num):
 
 def impurity_dist(imp1, imp2):
     """
+    Calculates the distance between two bounding boxes of impurities
     columns = x, rows = y
     """
     rmin1, rmax1, cmin1, cmax1 = imp1[:]
@@ -187,6 +204,9 @@ def impurity_dist(imp1, imp2):
     
     
 def check_box_dist():
+    """
+    a test for bounding box distance calculation
+    """
     img = cv.imread('./tags_png_cropped/scan1tag0_cropped.png')
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(markers, ret)
@@ -223,8 +243,7 @@ def check_box_dist():
     plt.show()
 
 
-# Should not be used. Use weighted_kth_nn instead.
-
+# !!!!!!! Should not be used. Use weighted_kth_nn instead. !!!!!!!
 def kth_nn(imp_boxes, img, markers, k_list):
     # data structure that holds for each impurity it's k nearest neighbor
     # it looks like this: first index: the k nearest neighbor (corresponding to k_list), second index is the impurity.
@@ -317,6 +336,7 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
 
     impurity_neighbors_and_area = {}
 
+    # weighted kth nn calculation
     for k in k_list:
         impurity_neighbors_and_area[k] = np.zeros(imp_boxes.shape[0])
 
@@ -481,7 +501,6 @@ def find_max_dims_from_dir(dir_path):
                                                                                                        total_dc_max,
                                                                                                        img_path))
 
-
     dr_max = int(total_dr_max * 2)
     dc_max = int(total_dc_max * 2)
 
@@ -504,20 +523,10 @@ def normalize_all_impurities(dir_path):
                                , write_circles=False)
 
 
-
 def main(img_path):
     save_normalized_impurities(img_path)
 
 
 if __name__ == "__main__":
-    #main('./tags_png_cropped/scan1tag-47.png')
-    #main('./tags_png_cropped/scan2tag-5.png')
-
-    #main('./tags_png_cropped/scan3tag-34.png')
-    #main('./tags_png_cropped/scan4tag-12.png')
-    #main('./tags_png_cropped/scan2tag-29.png')
-    #main('./tags_png_cropped/scan1tag-32.png')
-    # find_max_dims_from_dir('./tags_png_cropped/')
-
-    normalize_all_impurities('./tags_png_cropped/')
+    spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png')
 

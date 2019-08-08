@@ -1,23 +1,10 @@
-# import tensorflow as tf
-# from keras.backend.tensorflow_backend import set_session
-# config = tf.ConfigProto()
-# config.gpu_options.per_process_gpu_memory_fraction = 0.8
-# set_session(tf.Session(config=config))
 
 import numpy as np
-
-# import os
-# os.environ['KMP_DUPLICATE_LIB_OK']='True'
-
-# base_model = ResNet50(weights='imagenet',
-#                       include_top=False,
-#                       input_shape=(HEIGHT, WIDTH, 3))
-# base_model = ResNet50(input_shape=(HEIGHT, WIDTH, 3))
 
 HEIGHT = 100
 WIDTH = 100
 BATCH_SIZE = 64
-EPOCHS_NUM = 500
+EPOCHS_NUM = 250
 
 from keras.preprocessing.image import ImageDataGenerator
 # create generator
@@ -33,18 +20,12 @@ train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target
                                        class_mode="binary", batch_size=BATCH_SIZE)
 val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
                                      class_mode="binary", batch_size=BATCH_SIZE)
-# confirm the iterator works
-
-# batchX, batchy = train_it.next()
-# print('Batch shape=%s, min=%.3f, max=%.3f' % (batchX.shape, batchX.min(), batchX.max()))
 
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout, Activation
 from keras.models import Model, Sequential
-from keras.applications import VGG19
 from keras import backend as K
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
-from keras.utils.np_utils import to_categorical
 
 if K.image_data_format() == 'channels_first':
     input_shape = (3, WIDTH, HEIGHT)
@@ -169,30 +150,7 @@ def get_model_regular_net():
     return model
 
 
-from keras.callbacks import TensorBoard
-
-# autoencoder.fit(x_train, x_train,
-#                 epochs=50,
-#                 batch_size=128,
-#                 shuffle=True,
-#                 validation_data=(x_test, x_test),
-#                 callbacks=[TensorBoard(log_dir='/tmp/autoencoder')])
-
-# model = get_model_regular_net()
-
-# model = VGG19(weights=None, include_top=False, input_shape=(WIDTH, HEIGHT, 3), classes=2)
-# last = model.output
-#
-# x = Flatten()(last)
-# preds = Dense(2, activation='softmax')(x)
-#
-# model = Model(model.input, preds)
-# optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-# model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
-#               metrics=['accuracy'])
-
 model = get_model_regular_net()
-
 
 def fixed_generator(generator):
     """
@@ -233,11 +191,11 @@ test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', t
                                       class_mode="binary", batch_size=BATCH_SIZE)
 
 
-# loss_normal = model.evaluate_generator(test_it_normal, steps=24)
 score = model.evaluate_generator(test_it_combined, steps=24)
 print("Loss: ", score[0], "Accuracy: ", score[1])
 model.save("model.h5")
 print("Saved model to disk")
+
 
 # Plot the training and validation loss + accuracy
 def plot_training(history):
@@ -266,19 +224,7 @@ def plot_training(history):
 plot_training(history)
 
 
-
-
-
-
-
 # def main():
-    # load_train("./ae_data/all_regularized_impurities_train_normal/",
-    #            "./ae_data/all_regularized_impurities_train_anomaly/")
-    # load_test("./ae_data/all_regularized_impurities_test_normal/",
-    #           "./ae_data/all_regularized_impurities_test_anomaly/")
-
-
-
 
 # if __name__ == "__main__":
     # main()
