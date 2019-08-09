@@ -11,14 +11,14 @@ from keras.preprocessing.image import ImageDataGenerator
 datagen = ImageDataGenerator(rescale=1./255)
 # datagen = ImageDataGenerator()
 # prepare an iterators for each dataset
-# train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+# train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
 #                                        class_mode="binary", batch_size=BATCH_SIZE)
-# val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+# val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
 #                                      class_mode="binary", batch_size=BATCH_SIZE)
 
-train_it = datagen.flow_from_directory('ae_data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
                                        class_mode="binary", batch_size=BATCH_SIZE)
-val_it = datagen.flow_from_directory('ae_data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
                                      class_mode="binary", batch_size=BATCH_SIZE)
 
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout, Activation
@@ -181,13 +181,13 @@ history = model.fit_generator(train_it, epochs=EPOCHS_NUM, validation_data=val_i
                               validation_steps=8,
                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
-# test_it_normal = datagen.flow_from_directory('ae_data/data/test_normal/', target_size=(HEIGHT, WIDTH),
+# test_it_normal = datagen.flow_from_directory('data/data/test_normal/', target_size=(HEIGHT, WIDTH),
 #                                       class_mode=None, batch_size=BATCH_SIZE)
 #
-# test_it_anomaly = datagen.flow_from_directory('ae_data/data/test_anomaly/', target_size=(HEIGHT, WIDTH),
+# test_it_anomaly = datagen.flow_from_directory('data/data/test_anomaly/', target_size=(HEIGHT, WIDTH),
 #                                       class_mode=None, batch_size=BATCH_SIZE)
 
-test_it_combined = datagen.flow_from_directory('ae_data/test_with_2_classes/', target_size=(HEIGHT, WIDTH),
+test_it_combined = datagen.flow_from_directory('data/test_with_2_classes/', target_size=(HEIGHT, WIDTH),
                                       class_mode="binary", batch_size=BATCH_SIZE)
 
 

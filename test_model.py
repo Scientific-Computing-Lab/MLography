@@ -22,8 +22,8 @@ def load_image(img_path, show=True):
 
 model = load_model('./model.h5')
 
-anomaly_imp = "./ae_data/test_with_2_classes/anomaly/0.603991446964322scan3tag-16_impurity_1028.png"
-normal_imp = "./ae_data/test_with_2_classes/normal/scan1tag-1_impurity_1936.png"
+anomaly_imp = "./data/test_with_2_classes/anomaly/0.603991446964322scan3tag-16_impurity_1028.png"
+normal_imp = "./data/test_with_2_classes/normal/scan1tag-1_impurity_1936.png"
 
 model.compile(loss='binary_crossentropy',
               optimizer='rmsprop',
