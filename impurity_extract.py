@@ -81,7 +81,8 @@ def bbox(img):
 
 
 def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_max=300, dc_max=300,
-                           write_to_files=False, scan_name="", number_of_impurities_to_write=None, write_circles=True):
+                           write_to_files=False, scan_name="", number_of_impurities_to_write=None, write_circles=True,
+                           write_all=True, dest_path="./data/all_regularized_impurities_anomaly/"):
     """
     normalize the impurity images into a fixed size, and standardize the impurities to be in the center.
     :param img: original image
@@ -97,6 +98,8 @@ def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_m
     :param number_of_impurities_to_write: optional - maximum impurities allowed to be written
     :param write_circles: True - if writing impurities that are closed to circles is desired.
                           False - for writing anomaly impurities (not closed to circles)
+    :param write_all: True only if writing all significant impurities from a specific scan is intended
+    :param dest_path: The base destination path of the directory in which the output should be written to
     """
     if dr_max is None or dc_max is None:
         dr_max = 0
@@ -114,21 +117,24 @@ def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_m
     dr_max = int(dr_max * 2)
     dc_max = int(dc_max * 2)
 
+    too_big_counter = 0
+
     print("Starting to write normalized impurities")
     normalized = np.zeros(imp_boxes.shape[0])
 
     number_of_written_impurities = 0
     for impurity in indices:
-        # take only circle impurities
+        # take only circle impurities OR
+        # take only non-circle impurities as anomalies OR
+        # take all significant impurities
         if (write_circles and scores[impurity] <= 0.2 and areas[impurity] > 50) or \
-                (not write_circles and scores[impurity] > 0.6 and areas[impurity] > 50):
-            # take only non-circle impurities as anomalies
-
+                (not write_circles and scores[impurity] > 0.6 and areas[impurity] > 50) or write_all:
             rmin, rmax, cmin, cmax = imp_boxes[impurity]
             dr = int(rmax - rmin)
             dc = int(cmax - cmin)
             if 2*dr > dr_max or 2*dc > dc_max:
                 # skip too big impurities
+                too_big_counter += 1
                 continue
 
             pad_r = int((dr_max - dr) // 2)
@@ -145,13 +151,14 @@ def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_m
             if write_to_files:
                 string_score = str(scores[impurity])
                 string_score.replace('.', '_')
-                cv.imwrite("./ae_data/all_regularized_impurities_anomaly/" + string_score +
+                cv.imwrite(dest_path + string_score +
                            scan_name + "_impurity_" + str(impurity) +".png", blank_image)
 
             number_of_written_impurities += 1
             if number_of_impurities_to_write is not None and \
                     number_of_written_impurities >= number_of_impurities_to_write:
                 return normalized
+        print ("too big impurites: " + str(too_big_counter))
     return normalized
 
 
@@ -460,14 +467,17 @@ def spatial_anomaly_detection(img_path):
     weighted_kth_nn(imp_boxes, img, markers, k, areas, indices)
 
 
-def save_normalized_impurities(img_path):
+def save_normalized_impurities(img_path, dest_path):
     img = cv.imread(img_path)
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(markers, ret)
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
     #normalized_impurities = normalize_boxes(img, markers, imp_boxes, indices)
     scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
-    color_close_to_cirlce(img, markers, indices, scores, areas)
+    # color_close_to_cirlce(img, markers, indices, scores, areas)
+    img_name = os.path.splitext(os.path.basename(img_path))[0]
+    normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, write_to_files=True, scan_name=img_name
+                           , write_all=True, dest_path=dest_path)
 
 
 def find_max_dims_from_dir(dir_path):
@@ -528,5 +538,6 @@ def main(img_path):
 
 
 if __name__ == "__main__":
-    spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png')
+    # spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png')
+    save_normalized_impurities('./tags_png_cropped/scan1tag-47.png', "./data/test_scan1tag-47/")
 
