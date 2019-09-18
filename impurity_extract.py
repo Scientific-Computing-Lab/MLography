@@ -4,6 +4,9 @@ import cv2 as cv
 import matplotlib.pyplot as plt
 import scipy.spatial.distance as dist
 from smallestenclosingcircle import make_circle
+from data_preparation import normalize_circle_boxes
+from data_preparation import rescale_and_write_normalized_impurity
+from use_model import predict
 
 
 def get_markers(img):
@@ -80,86 +83,9 @@ def bbox(img):
     return int(rmin), int(rmax), int(cmin), int(cmax)
 
 
-def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_max=300, dc_max=300,
-                           write_to_files=False, scan_name="", number_of_impurities_to_write=None, write_circles=True,
-                           write_all=True, dest_path="./data/all_regularized_impurities_anomaly/"):
-    """
-    normalize the impurity images into a fixed size, and standardize the impurities to be in the center.
-    :param img: original image
-    :param markers: the markers from get_markers function
-    :param imp_boxes: the bounding boxes of the impurities
-    :param areas: the ares of the impurities
-    :param indices: the indices of the significant impurities (the ones with a not too-small size)
-    :param scores: the anomaly scores of the impurities. used for writing the score to the name of the file
-    :param dr_max: optional, the maximum difference of rows (height) of the impurity that is tolerated
-    :param dc_max: optional, the maximum difference of columns (width) of the impurity that is tolerated
-    :param write_to_files: True - write the impurities to files, False - do not write.
-    :param scan_name: optional - the name of the scan.
-    :param number_of_impurities_to_write: optional - maximum impurities allowed to be written
-    :param write_circles: True - if writing impurities that are closed to circles is desired.
-                          False - for writing anomaly impurities (not closed to circles)
-    :param write_all: True only if writing all significant impurities from a specific scan is intended
-    :param dest_path: The base destination path of the directory in which the output should be written to
-    """
-    if dr_max is None or dc_max is None:
-        dr_max = 0
-        dc_max = 0
 
-        for impurity in indices:
-            rmin, rmax, cmin, cmax = imp_boxes[impurity]
-            dr = rmax - rmin
-            dc = cmax - cmin
-            if dr > dr_max:
-                dr_max = dr
-            if dc > dc_max:
-                dc_max = dc
 
-    dr_max = int(dr_max * 2)
-    dc_max = int(dc_max * 2)
 
-    too_big_counter = 0
-
-    print("Starting to write normalized impurities")
-    normalized = np.zeros(imp_boxes.shape[0])
-
-    number_of_written_impurities = 0
-    for impurity in indices:
-        # take only circle impurities OR
-        # take only non-circle impurities as anomalies OR
-        # take all significant impurities
-        if (write_circles and scores[impurity] <= 0.2 and areas[impurity] > 50) or \
-                (not write_circles and scores[impurity] > 0.6 and areas[impurity] > 50) or write_all:
-            rmin, rmax, cmin, cmax = imp_boxes[impurity]
-            dr = int(rmax - rmin)
-            dc = int(cmax - cmin)
-            if 2*dr > dr_max or 2*dc > dc_max:
-                # skip too big impurities
-                too_big_counter += 1
-                continue
-
-            pad_r = int((dr_max - dr) // 2)
-            pad_c = int((dc_max - dc) // 2)
-
-            blank_image = np.zeros((dr_max, dc_max, 3), np.uint8)
-            blank_image[:, :] = (255, 255, 255)
-
-            image = np.zeros(img.shape, np.uint8)
-            image[:, :] = (255, 255, 255)
-            image[markers == impurity+2] = img[markers == impurity+2]
-            blank_image[pad_r:pad_r+dr, pad_c:pad_c+dc] = image[int(rmin):int(rmax), int(cmin):int(cmax)]
-            # normalized[impurity] = blank_image
-            if write_to_files:
-                string_score = str(scores[impurity])
-                string_score.replace('.', '_')
-                cv.imwrite(dest_path + string_score +
-                           scan_name + "_impurity_" + str(impurity) +".png", blank_image)
-
-            number_of_written_impurities += 1
-            if number_of_impurities_to_write is not None and \
-                    number_of_written_impurities >= number_of_impurities_to_write:
-                return normalized
-        print ("too big impurites: " + str(too_big_counter))
-    return normalized
 
 
 def save_boxes(markers, impurities_num):
@@ -337,7 +263,7 @@ def kth_nn(imp_boxes, img, markers, k_list):
     # return impurity_kth_neighbor
 
 
-def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
+def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices, need_plot=False):
     # data structure that holds for each impurity it's k nearest neighbor
     # it looks like this: first index: the k nearest neighbor (corresponding to k_list), second index is the impurity.
 
@@ -373,29 +299,33 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices):
         impurity_neighbors_and_area[k] = list(map(lambda x: x / max_val2, impurity_neighbors_and_area[k]))
 
     # fig = plt.figure(1)
-    blank_image2 = {}
     plt.show()
 
-    for k in k_list:
-        blank_image2[k] = np.zeros(img.shape, np.uint8)
-        blank_image2[k][:, :] = (255, 255, 255)
-    jet = plt.get_cmap('jet')
-    for impurity in indices:
+    if need_plot:
+        blank_image2 = {}
+
         for k in k_list:
-            color2 = jet(impurity_neighbors_and_area[k][impurity])
-            blank_image2[k][markers == impurity + 2] = (color2[0] * 255, color2[1] * 255, color2[2] * 255)
+            blank_image2[k] = np.zeros(img.shape, np.uint8)
+            blank_image2[k][:, :] = (255, 255, 255)
+        jet = plt.get_cmap('jet')
+        for impurity in indices:
+            for k in k_list:
+                score = impurity_neighbors_and_area[k][impurity]
+                color = jet(score)
+                blank_image2[k][markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
 
-    for i in range(len(k_list)):
-        plt.figure(i)
-        plt.imshow(blank_image2[k_list[i]], cmap='jet')
-        plt.colorbar()
-        plt.clim(0, 1)
-        plt.title("the kthNN is taken from" + r"$imp$" + " , when the distance to each other impurity" + r"$oth$" +
-                  "is calculated in the following manner: " + r"$\log ((\frac{S(imp)}{S(oth)})^2 * box-dist(imp, oth))$"
-                  + ", with k = {}".format(k_list[i]))
+        for i in range(len(k_list)):
+            plt.figure(i)
+            plt.imshow(blank_image2[k_list[i]], cmap='jet')
+            plt.colorbar()
+            plt.clim(0, 1)
+            plt.title("the kthNN is taken from" + r"$imp$" + " , when the distance to each other impurity" + r"$oth$" +
+                      "is calculated in the following manner: " + r"$\log ((\frac{S(imp)}{S(oth)})^2 * box-dist(imp, oth))$"
+                      + ", with k = {}".format(k_list[i]))
 
-    plt.show()
-    # return impurity_kth_neighbor
+        plt.show()
+
+    return impurity_neighbors_and_area
 
 
 def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
@@ -455,6 +385,90 @@ def color_close_to_cirlce(img, markers, indices, scores, areas):
     plt.show()
 
 
+def color_shape_anomaly(img, markers, indices, scores):
+    blank_image = np.zeros(img.shape, np.uint8)
+    blank_image[:, :] = (255, 255, 255)
+    jet = plt.get_cmap('jet')
+
+    for impurity in indices:
+        color = jet(scores[impurity])
+        blank_image[markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
+
+    plt.figure("Colored shape anomaly")
+    plt.imshow(blank_image, cmap='jet')
+    plt.colorbar()
+    plt.clim(0, 1)
+    plt.title("The color is determined by the neural network")
+
+    plt.show()
+    plt.savefig('colored_shape_anomaly.png')
+
+
+def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indices, shape_scores):
+    impurity_neighbors_and_area = weighted_kth_nn(imp_boxes, img, markers, k_list, areas, indices)
+
+    shape_scores_no_zero = shape_scores
+    # shape_scores_no_zero[shape_scores_no_zero == 0] = 1
+
+    blank_image = {}
+    blank_image_s = {}
+    blank_image_l = {}
+    norm_combined_scores = {}
+
+    for k in k_list:
+        blank_image[k] = np.zeros(img.shape, np.uint8)
+        blank_image[k][:, :] = (255, 255, 255)
+
+        blank_image_s[k] = np.zeros(img.shape, np.uint8)
+        blank_image_s[k][:, :] = (255, 255, 255)
+
+        blank_image_l[k] = np.zeros(img.shape, np.uint8)
+        blank_image_l[k][:, :] = (255, 255, 255)
+
+        combined_scores = impurity_neighbors_and_area[k][:] * shape_scores[:]
+        norm_combined_scores[k] = (combined_scores - np.min(combined_scores)) / np.ptp(combined_scores)
+    jet = plt.get_cmap('jet')
+    for impurity in indices:
+        # if areas[impurity] <= 100:
+        #     continue
+        for k in k_list:
+            # score = impurity_neighbors_and_area[k][impurity] * shape_scores[impurity]
+            # color = jet(max(score, impurity_neighbors_and_area[k][impurity], shape_scores_no_zero[impurity]))
+            color = jet(norm_combined_scores[k][impurity])
+            blank_image[k][markers == impurity + 2] = (color[0] * 255, color[1] * 255, color[2] * 255)
+
+            color_s = jet(shape_scores[impurity])
+            blank_image_s[k][markers == impurity + 2] = (color_s[0] * 255, color_s[1] * 255, color_s[2] * 255)
+
+            color_l = jet(impurity_neighbors_and_area[k][impurity])
+            blank_image_l[k][markers == impurity + 2] = (color_l[0] * 255, color_l[1] * 255, color_l[2] * 255)
+
+    for i in range(len(k_list)):
+        plt.figure("k = " + str(k_list[i]) + ", Shape and Spatial anomalies combined")
+        plt.imshow(blank_image[k_list[i]], cmap='jet')
+        plt.colorbar()
+        plt.clim(0, 1)
+        plt.title("k = " + str(k_list[i]) + ", Shape and Spatial anomalies combined")
+
+        plt.figure("k = " + str(k_list[i]) + ", Shape anomaly")
+        plt.imshow(blank_image_s[k_list[i]], cmap='jet')
+        plt.colorbar()
+        plt.clim(0, 1)
+        plt.title("k = " + str(k_list[i]) + ", Shape anomaly")
+
+        plt.figure("k = " + str(k_list[i]) + ", Spatial anomaly")
+        plt.imshow(blank_image_l[k_list[i]], cmap='jet')
+        plt.colorbar()
+        plt.clim(0, 1)
+        plt.title("k = " + str(k_list[i]) + ", Spatial anomaly")
+
+    plt.show()
+
+    cv.imwrite('anomaly_detection.png', blank_image[k_list[0]])
+    cv.imwrite('SHAPE_anomaly_detection.png', blank_image_s[k_list[0]])
+    cv.imwrite('LOCAL_anomaly_detection.png', blank_image_l[k_list[0]])
+
+
 def spatial_anomaly_detection(img_path):
     img = cv.imread(img_path)
     ret, markers = get_markers(img)
@@ -462,22 +476,47 @@ def spatial_anomaly_detection(img_path):
 
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
 
-    k = [5, 10, 15, 20, 40, 50]
-    # k = [50]
-    weighted_kth_nn(imp_boxes, img, markers, k, areas, indices)
+    # k = [5, 10, 15, 20, 40, 50]
+    k = [50]
+    weighted_kth_nn(imp_boxes, img, markers, k, areas, indices, need_plot=True)
 
 
-def save_normalized_impurities(img_path, dest_path):
+# change name to calc self anomaly
+
+def shape_anomaly_detection(img_path, dest_path, need_to_write=False):
     img = cv.imread(img_path)
     ret, markers = get_markers(img)
     imp_boxes = save_boxes(markers, ret)
     areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
     #normalized_impurities = normalize_boxes(img, markers, imp_boxes, indices)
-    scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
+
     # color_close_to_cirlce(img, markers, indices, scores, areas)
-    img_name = os.path.splitext(os.path.basename(img_path))[0]
-    normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, write_to_files=True, scan_name=img_name
-                           , write_all=True, dest_path=dest_path)
+    if need_to_write:
+        scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
+        img_name = os.path.splitext(os.path.basename(img_path))[0]
+        #### need to move all files into another sub folder for the DirectoryIterator !!!!
+        rescale_and_write_normalized_impurity(img, markers, imp_boxes, areas, indices, scores, scan_name=img_name,
+                                              write_all=True, dest_path_all=dest_path+"scan1tag-47/")
+    shape_reconstruct_loss = predict(path=dest_path, impurities_num=imp_boxes.shape[0])
+    # small impurities are not anomalous, thus the loss is 0
+    shape_reconstruct_loss[np.where(np.isinf(shape_reconstruct_loss))] = 0
+    norm_reconstruct_loss = (shape_reconstruct_loss - np.min(shape_reconstruct_loss)) / np.ptp(shape_reconstruct_loss)
+    print("normalized impurity 717 loss:"+str(norm_reconstruct_loss[717]))
+    # np.savetxt('shape_reconstruct_loss.out', shape_reconstruct_loss, delimiter=',')
+    # np.savetxt('norm_reconstruct_loss.out', norm_reconstruct_loss, delimiter=',')
+    # plt.figure("normalized reconstruct")
+    # plt.hist(norm_reconstruct_loss)
+    # plt.show()
+    # plt.savefig('norm_reconstruct_loss.png')
+
+    # plt.figure("regular reconstruct")
+    # plt.hist(shape_reconstruct_loss)
+    # plt.show()
+    # plt.savefig('shape_reconstruct_loss.png')
+
+    # color_shape_anomaly(img, markers, indices, norm_reconstruct_loss)
+    k_list = [50]
+    color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indices, norm_reconstruct_loss)
 
 
 def find_max_dims_from_dir(dir_path):
@@ -529,15 +568,22 @@ def normalize_all_impurities(dir_path):
         imp_boxes = save_boxes(markers, ret)
         areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
         scores = get_circle_impurity_score(markers, imp_boxes, areas, indices)
-        normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, write_to_files=True, scan_name=img_name
-                               , write_circles=False)
+        rescale_and_write_normalized_impurity(img, markers, imp_boxes, areas, indices, scores, scan_name=img_name,
+                                              dest_path_normal="./data/rescaled_extended/normal/",
+                                              dest_path_anomaly="./data/rescaled_extended/anomaly/"
+                                              )
+
 
 
 def main(img_path):
-    save_normalized_impurities(img_path)
+    shape_anomaly_detection(img_path, "./data/test_scan1tag-47/")
 
 
 if __name__ == "__main__":
     # spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png')
-    save_normalized_impurities('./tags_png_cropped/scan1tag-47.png', "./data/test_scan1tag-47/")
+
+    shape_anomaly_detection('./tags_png_cropped/scan1tag-47.png', "./data/test_scan1tag-47/", need_to_write=False)
+
+    # normalize_all_impurities("./tags_png_cropped/")
+
 

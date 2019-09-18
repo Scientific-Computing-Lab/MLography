@@ -1,77 +1,99 @@
-
+from time import time
 import numpy as np
 
 HEIGHT = 100
 WIDTH = 100
 BATCH_SIZE = 64
-EPOCHS_NUM = 250
+EPOCHS_NUM = 500
+
+anomaly_blank_label = True
 
 from keras.preprocessing.image import ImageDataGenerator
 # create generator
 datagen = ImageDataGenerator(rescale=1./255)
 # datagen = ImageDataGenerator()
 # prepare an iterators for each dataset
-# train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
-#                                        class_mode="binary", batch_size=BATCH_SIZE)
-# val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
-#                                      class_mode="binary", batch_size=BATCH_SIZE)
+if anomaly_blank_label:
+    # train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+    #                                        class_mode="binary", batch_size=BATCH_SIZE, color_mode='grayscale')
+    # val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+    #                                      class_mode="binary", batch_size=BATCH_SIZE, color_mode='grayscale')
+    train_it = datagen.flow_from_directory('data/rescaled_extended_2_classes/train/', target_size=(HEIGHT, WIDTH),
+                                           class_mode="binary", batch_size=BATCH_SIZE, color_mode='grayscale')
+    val_it = datagen.flow_from_directory('data/rescaled_extended_2_classes/validation/', target_size=(HEIGHT, WIDTH),
+                                         class_mode="binary", batch_size=BATCH_SIZE, color_mode='grayscale')
 
-train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
-                                       class_mode="binary", batch_size=BATCH_SIZE)
-val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
-                                     class_mode="binary", batch_size=BATCH_SIZE)
+# train_it = datagen.flow_from_directory('data/data_two_classes/train/', target_size=(HEIGHT, WIDTH),
+#                                        class_mode=None, batch_size=BATCH_SIZE)
+# val_it = datagen.flow_from_directory('data/data_two_classes/validation/', target_size=(HEIGHT, WIDTH),
+#                                      class_mode=None, batch_size=BATCH_SIZE)
+else:
+    # train_it = datagen.flow_from_directory('data/data/train/', target_size=(HEIGHT, WIDTH),
+    #                                        class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
+    # val_it = datagen.flow_from_directory('data/data/validation/', target_size=(HEIGHT, WIDTH),
+    #                                      class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
+    train_it = datagen.flow_from_directory('data/rescaled_extended_1_class/train/', target_size=(HEIGHT, WIDTH),
+                                           class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
+    val_it = datagen.flow_from_directory('data/rescaled_extended_1_class/validation/', target_size=(HEIGHT, WIDTH),
+                                         class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
 
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout, Activation
 from keras.models import Model, Sequential
 from keras import backend as K
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
+from keras.callbacks import TensorBoard
 
 if K.image_data_format() == 'channels_first':
-    input_shape = (3, WIDTH, HEIGHT)
+    input_shape = (1, WIDTH, HEIGHT)
 else:
-    input_shape = (WIDTH, HEIGHT, 3)
+    input_shape = (WIDTH, HEIGHT, 1)
 
-def autoencoder():
+
+def conv_autoencoder():
     input_img = Input(shape=input_shape)
 
     # encode with a deep net
-    x = Conv2D(3*16, (5, 5), activation='relu', padding='same')(input_img)
-    x = Conv2D(3*32, (5, 5), activation='relu', padding='same')(x)
-    x = Conv2D(3*64, (5, 5), activation='relu', padding='same')(x)
-
-    # maybe too much
-    # x = Conv2D(3*128, (5, 5), activation='relu', padding='same')(x)
-
-    # x = Conv2D(3 * 128, (3, 3), activation='relu', padding='same')(x)
-
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(3*32, (3, 3), activation='relu', padding='same')(x)
+    x = Dropout(0.3)(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Dropout(0.3)(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Dropout(0.3)(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     encoded = MaxPooling2D((2, 2), padding='same')(x)
+    x = Dropout(0.3)(encoded)
 
-    x = Conv2D(3*16, (3, 3), activation='relu', padding='same')(encoded)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = UpSampling2D((2, 2))(x)
-    x = Conv2D(3*32, (3, 3), activation='relu')(x)
+    x = Dropout(0.3)(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
     x = UpSampling2D((2, 2))(x)
+    x = Dropout(0.3)(x)
 
-    # x = Conv2D(3 * 64, (3, 3), activation='relu', padding='same')(x)
-    x = Conv2D(3 * 64, (3, 3), activation='relu', padding='same')(x)
-    x = Conv2D(3 * 32, (3, 3), activation='relu', padding='same')(x)
-    x = Conv2D(3 * 16, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Dropout(0.3)(x)
 
-    decoded = Conv2D(3*1, (3, 3), activation='sigmoid', padding='same')(x)
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
+    decoded = UpSampling2D((2, 2))(x)
 
     x = Flatten()(decoded)
+
     x = Dense(500, activation='relu')(x)
-    x = Dense(3*WIDTH*HEIGHT, activation='softmax')(x)
+    x = Dense(1*WIDTH*HEIGHT, activation='sigmoid')(x)
     result = Reshape(input_shape)(x)
 
-
-    # output = Reshape((WIDTH, HEIGHT, 3))(decoded)
     ae = Model(input_img, result)
-    optimizer = Adam(lr=1e-06, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    ae.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
-    # ae.compile(optimizer='adadelta', loss='binary_crossentropy')
+    optimizer = Adam(lr=1e-05, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    ae.compile(optimizer=optimizer, loss='mse', metrics=['accuracy'])
     return ae
 
 
@@ -83,6 +105,18 @@ def get_model_autoencoder():
     x = Conv2D(16, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
     x = Dropout(0.3)(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(32, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
@@ -119,16 +153,82 @@ def get_model_autoencoder():
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
     x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(32, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
     x = Dropout(0.3)(x)
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(16, (3, 3), activation='elu', padding='same', kernel_initializer='random_uniform')(x)
     x = Conv2D(16, (3, 3), activation='elu')(x)
     x = UpSampling2D((2, 2))(x)
-    decoded = Conv2D(3, (2, 2), activation='sigmoid', padding='valid', name="decoded")(x)
+    decoded = Conv2D(3, (2, 2), activation='relu', padding='valid', name="decoded")(x)
 
-    autoencoder = Model(input_img, decoded)
-    optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy')
+    x = Flatten()(decoded)
+    x = Dense(128, activation='relu')(x)
+    x = Dense(3 * WIDTH * HEIGHT, activation='sigmoid')(x)
+    result = Reshape(input_shape)(x)
+
+    autoencoder = Model(input_img, result)
+    optimizer = Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    autoencoder.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+    return autoencoder
+
+
+def get_model_autoencoder_fully_connected():
+    # min=32, on test:
+    # Normal:  Loss:  0.000199182173673762 Accuracy:  0.3337676227092743
+    # Anoamly: Loss:  0.001865490889770398 Accuracy:  0.3337482490229258
+    input_img = Input(shape=input_shape, name="input_img")  # adapt this if using `channels_first` image data format
+    x = Flatten()(input_img)
+
+    x = Dense(550, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(540, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(520, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(500, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(300, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(200, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(300, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    # x = Dense(400, activation='relu')(x)
+    # x = Dense(350, kernel_regularizer='l2', activation='tanh')(x)
+    # x = Dense(400, kernel_regularizer='l2', activation='relu')(x)
+    # x = Dense(600, kernel_regularizer='l2', activation='relu')(x)
+    # # x = Dense(700, kernel_regularizer='l2', activation='relu')(x)
+    # # x = Dropout(0.3)(x)
+    # x = Dense(600, kernel_regularizer='l2', activation='relu')(x)
+    # x = Dense(600, kernel_regularizer='l2', activation='relu')(x)
+    x = Dense(500, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(520, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(540, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    x = Dense(550, activation='relu')(x)
+
+    # x = Dense(100, kernel_regularizer='l2', activation='relu')(x)
+    # x = Dropout(0.3)(x)
+
+    x = Dense(1 * WIDTH * HEIGHT, activation='sigmoid')(x)
+    result = Reshape(input_shape)(x)
+
+    autoencoder = Model(input_img, result)
+    optimizer = Adam(lr=0.000001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    autoencoder.compile(optimizer=optimizer, loss="mean_squared_error", metrics=['accuracy'])
     return autoencoder
 
 
@@ -150,7 +250,10 @@ def get_model_regular_net():
     return model
 
 
-model = get_model_regular_net()
+# model = get_model_regular_net()
+model = conv_autoencoder()
+# model = get_model_autoencoder()
+# model = get_model_autoencoder_fully_connected()
 
 def fixed_generator(generator):
     """
@@ -173,27 +276,64 @@ def fixed_generator(generator):
         yield (fixed_x, fixed_y)
 
 
-# history = model.fit_generator(fixed_generator(train_it), epochs=EPOCHS_NUM, validation_data=fixed_generator(val_it),
+def fixed_generator_none(generator):
+    """
+    """
+    for batch in generator:
+        yield (batch, batch)
+
+tbCallBack = TensorBoard(log_dir='./Graph/{}'.format(time()), histogram_freq=0, write_graph=True, write_images=True)
+
+if anomaly_blank_label:
+    history = model.fit_generator(fixed_generator(train_it), epochs=EPOCHS_NUM,
+                                  validation_data=fixed_generator(val_it),
+                                  validation_steps=8,
+                                  steps_per_epoch=16, workers=8, use_multiprocessing=True, callbacks=[tbCallBack])
+else:
+    history = model.fit_generator(fixed_generator_none(train_it), epochs=EPOCHS_NUM,
+                                  validation_data=fixed_generator_none(val_it),
+                                  validation_steps=8,
+                                  steps_per_epoch=16, workers=8, use_multiprocessing=True, callbacks=[tbCallBack])
+# for regular net
+
+# history = model.fit_generator(train_it, epochs=EPOCHS_NUM, validation_data=val_it,
 #                               validation_steps=8,
 #                               steps_per_epoch=16, workers=8, use_multiprocessing=True)
 
-history = model.fit_generator(train_it, epochs=EPOCHS_NUM, validation_data=val_it,
-                              validation_steps=8,
-                              steps_per_epoch=16, workers=8, use_multiprocessing=True)
+
+# not rescaled dataset
 
 # test_it_normal = datagen.flow_from_directory('data/data/test_normal/', target_size=(HEIGHT, WIDTH),
-#                                       class_mode=None, batch_size=BATCH_SIZE)
+#                                       class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
 #
 # test_it_anomaly = datagen.flow_from_directory('data/data/test_anomaly/', target_size=(HEIGHT, WIDTH),
-#                                       class_mode=None, batch_size=BATCH_SIZE)
+#                                       class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
 
-test_it_combined = datagen.flow_from_directory('data/test_with_2_classes/', target_size=(HEIGHT, WIDTH),
-                                      class_mode="binary", batch_size=BATCH_SIZE)
+# rescaled dataset
+
+test_it_normal = datagen.flow_from_directory('data/test_rescaled_extended/normal/', target_size=(HEIGHT, WIDTH),
+                                             class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
+
+test_it_anomaly = datagen.flow_from_directory('data/test_rescaled_extended/anomaly/', target_size=(HEIGHT, WIDTH),
+                                              class_mode=None, batch_size=BATCH_SIZE, color_mode='grayscale')
+
+# test_it_combined = datagen.flow_from_directory('data/test_with_2_classes/', target_size=(HEIGHT, WIDTH),
+#                                       class_mode="binary", batch_size=BATCH_SIZE)
 
 
-score = model.evaluate_generator(test_it_combined, steps=24)
-print("Loss: ", score[0], "Accuracy: ", score[1])
-model.save("model.h5")
+score = model.evaluate_generator(fixed_generator_none(test_it_normal), steps=24)
+print("Normal:  Loss: ", score[0], "Accuracy: ", score[1])
+
+score = model.evaluate_generator(fixed_generator_none(test_it_anomaly), steps=24)
+print("Anoamly: Loss: ", score[0], "Accuracy: ", score[1])
+
+model.save("model_ae_extended.h5")
+
+# Write the net summary
+with open('model_summary.txt','w') as fh:
+    # Pass the file handle in as a lambda function to make it callable
+    model.summary(print_fn=lambda x: fh.write(x + '\n'))
+
 print("Saved model to disk")
 
 
