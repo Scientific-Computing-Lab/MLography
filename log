@@ -1,0 +1,38 @@
+Using TensorFlow backend.
+2019-10-10 16:35:45,609	WARNING worker.py:1426 -- WARNING: Not updating worker name since `setproctitle` is not installed. Install this with `pip install setproctitle` (or ray[debug]) to enable monitoring of worker processes.
+2019-10-10 16:35:45,611	WARNING resource_spec.py:163 -- Warning: Capping object memory store to 20.0GB. To increase this further, specify `object_store_memory` when calling ray.init() or ray start.
+2019-10-10 16:35:45,611	INFO resource_spec.py:205 -- Starting Ray with 60.11 GiB memory available for workers and up to 18.63 GiB for objects. You can adjust these settings with ray.init(memory=<bytes>, object_store_memory=<bytes>).
+WARNING:tensorflow:From /opt/sw/anaconda3/lib/python3.6/site-packages/tensorflow/python/framework/op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+WARNING:tensorflow:From /opt/sw/anaconda3/lib/python3.6/site-packages/keras/backend/tensorflow_backend.py:3445: calling dropout (from tensorflow.python.ops.nn_ops) with keep_prob is deprecated and will be removed in a future version.
+Instructions for updating:
+Please use `rate` instead of `keep_prob`. Rate should be set to `rate = 1 - keep_prob`.
+2019-10-10 16:37:46.931876: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: SSE4.1 SSE4.2 AVX AVX2 AVX512F FMA
+2019-10-10 16:37:46.946207: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2100000000 Hz
+2019-10-10 16:37:46.954740: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x556338309e40 executing computations on platform Host. Devices:
+2019-10-10 16:37:46.954785: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
+2019-10-10 16:37:47.159882: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1433] Found device 0 with properties: 
+name: Tesla V100-PCIE-32GB major: 7 minor: 0 memoryClockRate(GHz): 1.38
+pciBusID: 0000:58:00.0
+totalMemory: 31.72GiB freeMemory: 31.41GiB
+2019-10-10 16:37:47.292987: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1433] Found device 1 with properties: 
+name: Tesla V100-PCIE-32GB major: 7 minor: 0 memoryClockRate(GHz): 1.38
+pciBusID: 0000:d8:00.0
+totalMemory: 31.72GiB freeMemory: 31.41GiB
+2019-10-10 16:37:47.294501: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1512] Adding visible gpu devices: 0, 1
+2019-10-10 16:37:47.297108: I tensorflow/core/common_runtime/gpu/gpu_device.cc:984] Device interconnect StreamExecutor with strength 1 edge matrix:
+2019-10-10 16:37:47.297123: I tensorflow/core/common_runtime/gpu/gpu_device.cc:990]      0 1 
+2019-10-10 16:37:47.297127: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1003] 0:   N Y 
+2019-10-10 16:37:47.297131: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1003] 1:   Y N 
+2019-10-10 16:37:47.298486: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1115] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:0 with 30555 MB memory) -> physical GPU (device: 0, name: Tesla V100-PCIE-32GB, pci bus id: 0000:58:00.0, compute capability: 7.0)
+2019-10-10 16:37:47.298888: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1115] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:1 with 30555 MB memory) -> physical GPU (device: 1, name: Tesla V100-PCIE-32GB, pci bus id: 0000:d8:00.0, compute capability: 7.0)
+2019-10-10 16:37:47.302947: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x55633be981c0 executing computations on platform CUDA. Devices:
+2019-10-10 16:37:47.302967: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): Tesla V100-PCIE-32GB, Compute Capability 7.0
+2019-10-10 16:37:47.302973: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (1): Tesla V100-PCIE-32GB, Compute Capability 7.0
+WARNING:tensorflow:From /opt/sw/anaconda3/lib/python3.6/site-packages/tensorflow/python/ops/math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.cast instead.
+2019-10-10 16:39:38.668182: I tensorflow/stream_executor/dso_loader.cc:152] successfully opened CUDA library libcublas.so.10.0 locally
+XIO:  fatal IO error 11 (Resource temporarily unavailable) on X server "localhost:10.0"
+      after 1502 requests (1491 known processed) with 0 events remaining.
