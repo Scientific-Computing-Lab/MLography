@@ -1,8 +1,7 @@
 ./ae_data/all_regularized_impurities_normal
 .idea/workspace.xml
 __pycache__/
-ae_data/all_regularized_impurities_anomaly_over0.6/
-ae_data/all_regularized_impurities_normal/
-ae_data/data_anomaly/
-ae_data/data_normal/
 model.h5
+model_ae.h5
+model_ae_extended.h5
+data/*
