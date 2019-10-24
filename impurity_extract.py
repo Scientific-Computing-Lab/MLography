@@ -220,6 +220,7 @@ def weighted_kth_nn(imp_boxes, img, markers, k_list, imp_area, indices, need_plo
 
     return impurity_neighbors_and_area
 
+
 def weighted_kth_nn_not_parallel(imp_boxes, img, markers, k_list, imp_area, indices, need_plot=False):
     # data structure that holds for each impurity it's k nearest neighbor
     # it looks like this: first index: the k nearest neighbor (corresponding to k_list), second index is the impurity.
@@ -285,7 +286,40 @@ def weighted_kth_nn_not_parallel(imp_boxes, img, markers, k_list, imp_area, indi
     return impurity_neighbors_and_area
 
 
+@ray.remote
+def get_impurity_areas_and_significant_indices_single(markers, impurities_chunks, min_area):
+    imp_area = np.zeros(len(impurities_chunks))
+    indices = []
+    for i in range(len(impurities_chunks)):
+        impurity = impurities_chunks[i]
+        impurity_shape = np.argwhere(markers == impurity + 2)
+        area = impurity_shape.shape[0]
+        imp_area[i] = area
+        if area > min_area:
+            indices.append(impurity)
+    return imp_area, indices
+
+
 def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
+    start = time.time()
+    imp_area = np.zeros(imp_boxes.shape[0])
+    indices = []
+
+    impurities_chunks = np.array_split(range(imp_boxes.shape[0]), num_threads)
+
+    tasks = list()
+    for i in range(num_threads):
+        tasks.append(get_impurity_areas_and_significant_indices_single.remote(markers, impurities_chunks[i], min_area))
+    for i in range(num_threads):
+        task_out_areas, task_out_indices = ray.get(tasks[i])
+        imp_area[impurities_chunks[i]] = task_out_areas[:]   # order is important
+        indices.extend(task_out_indices)   # order is not important
+    end = time.time()
+    print("time get_impurity_areas_and_significant_indices parallel: " + str(end - start))
+    return imp_area, indices
+
+
+def get_impurity_areas_and_significant_indices_not_parallel(imp_boxes, markers, min_area=3):
     start = time.time()
     imp_area = []
     indices = []
@@ -296,7 +330,7 @@ def get_impurity_areas_and_significant_indices(imp_boxes, markers, min_area=3):
         if area > min_area:
             indices.append(impurity)
     end = time.time()
-    print("time get_impurity_areas_and_significant_indices: " + str(end - start))
+    print("time get_impurity_areas_and_significant_indices not parallel: " + str(end - start))
     return imp_area, indices
 
 
@@ -391,10 +425,8 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
     blank_image = {}
     blank_image_s = {}
     blank_image_l = {}
-    blank_image_condensed_nn = {}
 
     norm_combined_scores = {}
-    impurity_area_scores = {}
 
     for k in k_list:
         blank_image[k] = np.zeros(img.shape, np.uint8)
@@ -406,19 +438,10 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
         blank_image_l[k] = np.zeros(img.shape, np.uint8)
         blank_image_l[k][:, :] = (255, 255, 255)
 
-        blank_image_condensed_nn[k] = np.zeros(img.shape, np.uint8)
-        blank_image_condensed_nn[k][:, :] = (255, 255, 255)
-
         combined_scores = impurity_neighbors_and_area[k][:] * shape_scores[:]
         norm_combined_scores[k] = (combined_scores - np.min(combined_scores)) / np.ptp(combined_scores)
-        prototype_impurities = divide_impurities_to_clusters_by_anomaly(indices, imp_boxes, norm_combined_scores[k][:],
-                                                                        k=9)
-        impurity_area_scores[k] = np.full(imp_boxes.shape[0], 1/9)
-        for (prototype_impurity, anomaly_class) in prototype_impurities:
-            impurity_area_scores[k][prototype_impurity] = 1/anomaly_class
 
     jet = plt.get_cmap('jet')
-    tab10 = plt.get_cmap('tab10')
     for impurity in indices:
         for k in k_list:
             color = jet(norm_combined_scores[k][impurity])
@@ -429,10 +452,6 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
 
             color_l = jet(impurity_neighbors_and_area[k][impurity])
             blank_image_l[k][markers == impurity + 2] = (color_l[0] * 255, color_l[1] * 255, color_l[2] * 255)
-
-            color_condensed_nn = tab10(impurity_area_scores[k][impurity])
-            blank_image_condensed_nn[k][markers == impurity + 2] = \
-                (color_condensed_nn[0] * 255, color_condensed_nn[1] * 255, color_condensed_nn[2] * 255)
 
     for i in range(len(k_list)):
         plt.figure("k = " + str(k_list[i]) + ", Shape and Spatial anomalies combined")
@@ -452,12 +471,6 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
         plt.colorbar()
         plt.clim(0, 1)
         plt.title("k = " + str(k_list[i]) + ", Spatial anomaly")
-
-        plt.figure("k = " + str(k_list[i]) + ", Area anomaly")
-        plt.imshow(blank_image_condensed_nn[k_list[i]], cmap='tab10')
-        plt.colorbar()
-        plt.clim(0, 1)
-        plt.title("k = " + str(k_list[i]) + ", Area anomaly")
 
         # plt.figure("Input")
         # plt.imshow(img)

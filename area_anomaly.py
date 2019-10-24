@@ -1,13 +1,60 @@
 import numpy as np
 import random
-from utils import impurity_dist
+from utils import impurity_dist, num_threads
 import matplotlib.pyplot as plt
 import time
 from sklearn import neighbors
+import ray
 
+
+@ray.remote
+def divide_impurities_to_clusters_by_anomaly_singel(impurities_chunks, indices, imp_boxes, anomaly_scores, k=10):
+    prototype_impurities = list()
+    remaining_indices = list(impurities_chunks.copy())
+    converged = False
+    while not converged:
+        converged = True
+        random_indices = remaining_indices.copy()
+        random.shuffle(random_indices)
+
+        for impurity in random_indices:
+            nn = [(impurity_dist(imp_boxes[impurity], imp_boxes[x]), x) for x in indices if x != impurity]
+            nn.sort()
+            nearest_impurity = nn[0][1]
+            self_anomaly_class = int(anomaly_scores[impurity] / (1 / k))
+            nearest_anomaly_class = int(anomaly_scores[nearest_impurity] / (1 / k))
+            if self_anomaly_class != nearest_anomaly_class:
+                prototype_impurities.append((impurity, self_anomaly_class))
+                remaining_indices.remove(impurity)
+                converged = False
+    return prototype_impurities
 
 
 def divide_impurities_to_clusters_by_anomaly(indices, imp_boxes, anomaly_scores, k=10):
+    """
+    Based on Condensed-nearest-neighbor
+    :param indices:
+    :param anomaly_scores:
+    :param k:
+    :return:
+    """
+    start = time.time()
+    prototype_impurities = list()
+    impurities_chunks = np.array_split(indices, num_threads)
+
+    tasks = list()
+    for i in range(num_threads):
+        tasks.append(divide_impurities_to_clusters_by_anomaly_singel.remote(impurities_chunks[i], indices,
+                                                                            imp_boxes, anomaly_scores, k))
+    for i in range(num_threads):
+        task_out = ray.get(tasks[i])
+        prototype_impurities.extend(task_out)
+    end = time.time()
+    print("time divide_impurities_to_clusters_by_anomaly parallel: " + str(end - start))
+    return prototype_impurities
+
+
+def divide_impurities_to_clusters_by_anomaly_not_parallel(indices, imp_boxes, anomaly_scores, k=10):
     """
     Based on Condensed-nearest-neighbor
     :param indices:
@@ -34,7 +81,7 @@ def divide_impurities_to_clusters_by_anomaly(indices, imp_boxes, anomaly_scores,
                 remaining_indices.remove(impurity)
                 converged = False
     end = time.time()
-    print("time divide_impurities_to_clusters_by_anomaly: " + str(end - start))
+    print("time divide_impurities_to_clusters_by_anomaly not parallel: " + str(end - start))
     return prototype_impurities
 
 
@@ -50,15 +97,16 @@ def fit_all_pixels_and_color_area_anomaly(img, markers, indices, imp_boxes, prot
     for (prototype_impurity, anomaly_class) in prototype_impurities:
         impurity_pixels = np.argwhere(markers == prototype_impurity + 2)
         for impurity_pixel in impurity_pixels:
-            data.append(impurity_pixel)
-            labels.append(anomaly_class / 10)
+            data.append(list(impurity_pixel))
+            labels.append(int(anomaly_class / 10))
 
     knn = neighbors.KNeighborsClassifier()
 
     # we create an instance of Neighbours Classifier and fit the data.
     knn.fit(data, labels)
 
-    h = .02  # step size in the mesh
+    data = np.array(data)
+    h = 1 # step size in the mesh
 
     x_min, x_max = data[:, 0].min() - .5, data[:, 0].max() + .5
     y_min, y_max = data[:, 1].min() - .5, data[:, 1].max() + .5
@@ -66,7 +114,7 @@ def fit_all_pixels_and_color_area_anomaly(img, markers, indices, imp_boxes, prot
     pixel_predictions = knn.predict(np.c_[xx.ravel(), yy.ravel()])
 
     pixel_predictions = pixel_predictions.reshape(xx.shape)
-    plt.figure(1, figsize=(4, 3))
+    plt.figure(1)
     tab10 = plt.get_cmap('tab10')
     plt.set_cmap(tab10)
     plt.pcolormesh(xx, yy, pixel_predictions)
