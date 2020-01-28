@@ -1,7 +1,16 @@
-import numpy as np
-import scipy.spatial.distance as dist
+import warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore",category=FutureWarning)
+    import ray
+    import numpy as np
+    import scipy.spatial.distance as dist
+    import math
 
 num_threads = 50
+
+
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
 
 
 def impurity_dist(imp1, imp2):
@@ -34,3 +43,34 @@ def impurity_dist(imp1, imp2):
         return rmin2 - rmax1
     else:  # rectangles intersect
         return 0.
+
+
+@ray.remote
+def find_diameter_single(imp_boxes_chunk, start_index,  imp_boxes):
+    max_dist = 0
+    for i, imp in enumerate(imp_boxes_chunk):
+        global_i = start_index + i
+        for other_imp in imp_boxes[global_i+1:]:
+            max_dist = max(max_dist, impurity_dist(imp, other_imp))
+    return max_dist
+
+
+def find_diameter(imp_boxes):
+    imp_boxes_chunks = np.array_split(imp_boxes, num_threads)
+    tasks = list()
+    for i in range(num_threads):
+        start_index = i * len(imp_boxes_chunks[i-1])  # index offset from the whole array
+        tasks.append(find_diameter_single.remote(imp_boxes_chunks[i], start_index, imp_boxes))
+    max_dist = 0
+    for i in range(num_threads):
+        max_dist = max(max_dist, ray.get(tasks[i]))
+    return max_dist
+
+
+def find_diameter_not_parallel(imp_boxes):
+    max_dist = 0
+    for i, imp in enumerate(imp_boxes):
+        for other_imp in imp_boxes[i+1:]:
+            max_dist = max(max_dist, impurity_dist(imp, other_imp))
+    return max_dist
+

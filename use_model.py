@@ -15,6 +15,7 @@ with warnings.catch_warnings():
     import cv2 as cv
     import ray
     from utils import num_threads
+    from glob import glob
 
 
 def load_image(img_path, height=100, width=100, show=True):
@@ -37,13 +38,18 @@ def fixed_generator_none(generator):
 def test_2_impurities(model_name='./model.h5', height=100, width=100):
     model = load_model(model_name)
 
-    normal_imp = "./data/test_rescaled/normal/test/0.151907915704087scan3tag-48_impurity_242.png"
+    normal_imp = glob("./data/test_scan3tag-48/*/*impurity_242.png")[0]
+    # normal_imp = "./data/test_rescaled_extended/normal/test/0.151907915704087scan3tag-48_impurity_242.png"
 
-    anomaly_imp = "./data/test_rescaled/anomaly/test/0.624159885095173scan2tag-34_impurity_875.png"
+    anomaly_imp = glob("./data/test_scan2tag-34/*/*impurity_875.png")[0]
+    print(anomaly_imp)
+    # anomaly_imp = "./data/test_rescaled_extended/anomaly/test/0.624159885095173scan2tag-34_impurity_875.png"
 
-    anomaly_imp2 = "./data/test_rescaled/anomaly/test/0.93742507727708scan1tag-47_impurity_1056.png"
+    anomaly_line = glob("./data/test_scan1tag-47/*/*impurity_1056.png")[0]
+    # anomaly_line = "./data/test_rescaled_extended/anomaly/test/0.93742507727708scan1tag-47_impurity_1056.png"
 
-    anomaly_imp717 = "./data/test_scan1tag-47/scan1tag-47/0.8692158152501969scan1tag-47_impurity_717.png"
+    anomaly_imp717 = glob("./data/test_scan1tag-47/*/*impurity_717.png")[0]
+    # anomaly_imp717 = "./data/test_scan1tag-47/scan1tag-47/0.8692158152501969scan1tag-47_impurity_717.png"
 
     model.compile(loss="mean_squared_error",
                   optimizer='rmsprop',
@@ -52,7 +58,7 @@ def test_2_impurities(model_name='./model.h5', height=100, width=100):
     # load a single image
     new_image_anomaly = load_image(anomaly_imp, height, width)
 
-    new_image_anomaly2 = load_image(anomaly_imp2, height, width)
+    new_image_anomaly_line = load_image(anomaly_line, height, width)
 
     new_image_anomaly717 = load_image(anomaly_imp717, height, width)
 
@@ -63,7 +69,7 @@ def test_2_impurities(model_name='./model.h5', height=100, width=100):
     pred_a = model.predict(new_image_anomaly)
     print("predicted anomaly")
 
-    pred_a2 = model.predict(new_image_anomaly2)
+    pred_a_line = model.predict(new_image_anomaly_line)
     print("predicted line anomaly")
 
     pred_a717 = model.predict(new_image_anomaly717)
@@ -77,25 +83,25 @@ def test_2_impurities(model_name='./model.h5', height=100, width=100):
     # print('Predicted normal:', pred_n)
 
     save_img('reconstructed_anomaly.jpg', pred_a[0])
-    save_img('reconstructed_anomaly_line.jpg', pred_a2[0])
+    save_img('reconstructed_anomaly_line.jpg', pred_a_line[0])
     save_img('reconstructed_anomaly_717.jpg', pred_a717[0])
 
     save_img('reconstructed_normal.jpg', pred_n[0])
     print("saved images")
 
-    fig, ((ax11, ax12, ax13, ax14), (ax21, ax22, ax23, ax24)) = plt.subplots(2, 4)
-
-    ax11.imshow(cv.imread(normal_imp))
-    ax12.imshow(cv.imread(anomaly_imp))
-    ax13.imshow(cv.imread(anomaly_imp2))
-    ax14.imshow(cv.imread(anomaly_imp717))
-
-    ax21.imshow(np.expand_dims(pred_n[0], axis=0))
-    ax22.imshow(np.expand_dims(pred_a[0], axis=0))
-    ax23.imshow(np.expand_dims(pred_a2[0], axis=0))
-    ax24.imshow(np.expand_dims(pred_a717[0], axis=0))
-
-    plt.show()
+    # fig, ((ax11, ax12, ax13, ax14), (ax21, ax22, ax23, ax24)) = plt.subplots(2, 4)
+    #
+    # ax11.imshow(cv.imread(normal_imp))
+    # ax12.imshow(cv.imread(anomaly_imp))
+    # ax13.imshow(cv.imread(anomaly_line))
+    # ax14.imshow(cv.imread(anomaly_imp717))
+    #
+    # ax21.imshow(np.expand_dims(pred_n[0], axis=0))
+    # ax22.imshow(np.expand_dims(pred_a[0], axis=0))
+    # ax23.imshow(np.expand_dims(pred_a_line[0], axis=0))
+    # ax24.imshow(np.expand_dims(pred_a717[0], axis=0))
+    #
+    # plt.show()
 
 
 
@@ -135,12 +141,14 @@ def get_scores_single(files_chunk, path, pred_chunk):
     return chunk_indices, impurity_anomaly_shape_scores
 
 
-def predict(path, impurities_num, model_name='./model_ae_extended.h5', height=100, width=100, BATCH_SIZE=64):
-    model = load_model(model_name)
+def predict(path, impurities_num, model=None, model_name='./model_ae_extended.h5',
+            height=100, width=100, BATCH_SIZE=64):
+    if model is None:
+        model = load_model(model_name)
 
-    model.compile(loss='mse',
-                  optimizer='rmsprop',
-                  metrics=['accuracy'])
+        model.compile(loss='mse',
+                      optimizer='rmsprop',
+                      metrics=['accuracy'])
 
     datagen = ImageDataGenerator(rescale=1. / 255)
     test_it = datagen.flow_from_directory(path, target_size=(height, width), class_mode=None,
@@ -212,7 +220,7 @@ def predict_not_parallel(path, impurities_num, model_name='./model_ae_extended.h
     return impurity_anomaly_shape_scores
 
 if __name__ == "__main__":
-    test_2_impurities('./model_ae.h5')
+    test_2_impurities('./model_backup.h5')
     # predict(path, impurities_num, model_name='./model.h5', height=600, width=600, BATCH_SIZE=64)
 
 

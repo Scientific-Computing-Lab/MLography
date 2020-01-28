@@ -91,7 +91,7 @@ def split_to_classes(input_data_path, test_path=None, out_two_classes=None, out_
         split_to_train_test_val(in_path=input_data_path+"/anomaly", train_path=train_path_anomaly,
                                 val_path=val_path_anomaly, test_path=test_path_anomaly_class)
 
-split_to_classes(input_data_path="./data/rescaled_extended", test_path="./data/test_rescaled_extended",
-                 out_two_classes="./data/rescaled_extended_2_classes", out_one_class=None)
+# split_to_classes(input_data_path="./data/rescaled_extended", test_path="./data/test_rescaled_extended",
+#                  out_two_classes="./data/rescaled_extended_2_classes", out_one_class=None)
 split_to_classes(input_data_path="./data/rescaled_extended", test_path=None,    # need to create test dir only once
                  out_two_classes=None, out_one_class="./data/rescaled_extended_1_class")

@@ -86,7 +86,7 @@ def normalize_circle_boxes(img, markers, imp_boxes, areas, indices, scores, dr_m
     return normalized
 
 @ray.remote
-def rescale_and_write_normalized_impurity_singel(img, markers, imp_boxes, areas, impurities_chunk,
+def rescale_and_write_normalized_impurity_single(img, markers, imp_boxes, areas, impurities_chunk,
                                                  scores, height, width,
                                                  proportion_impurity_of_image, scan_name, dest_path_normal,
                                                  dest_path_anomaly, write_all, dest_path_all):
@@ -181,7 +181,7 @@ def rescale_and_write_normalized_impurity(img, markers, imp_boxes, areas, indice
 
     tasks = list()
     for i in range(num_threads):
-        tasks.append(rescale_and_write_normalized_impurity_singel.remote(img, markers, imp_boxes, areas,
+        tasks.append(rescale_and_write_normalized_impurity_single.remote(img, markers, imp_boxes, areas,
                                                                          impurities_chunks[i], scores, height, width,
                                                                          proportion_impurity_of_image, scan_name,
                                                                          dest_path_normal, dest_path_anomaly,
