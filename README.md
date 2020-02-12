@@ -1,16 +1,26 @@
 # MLography: An Machine-Learning approach for Metallography
 
-Currently the first phase is under development: Anomaly Detection for impurities. There are several kinds of anomalies:
-1. **Spatial Anomaly**: impurities that are big and distant compared to their neighborhood are considered as anomalies.
-2. **Self Anomaly**: impurities of an non-symmetric shapes are considerd as anomalies.
+Anomaly Detection for impurities: There are several kinds of anomaly measures:
+1. **Spatial Anomaly**: impurities that are big and distant compared to their neighborhood are considered anomalous.
+2. **Shape Anomaly**: impurities of an non-symmetric shapes are considerd anomalous.
+2. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
 
 # Instructions
 ## Running
 
-There are several scripts in the project:
-1. **impurity_extract.py** - the main script of the first phase. Currently it allows to execute the *Spatial Anomaly* functionality (*weighted_kth_nn*) as well as to supply an infrastructure for writing the impurities (*normalize_circle_boxes*) after pre-processing (*get_markers*) into files. 
-2. **neural_net.py** - the network model that is responsible for training and loading data for the *Self Anoamly*.
-3. **test_model.py** - a test for the neural network above.
+There are several scripts:
+1. **anomaly_detection.py** - the main script. Currently it allows to execute the *Shape and Spatial Anomaly* functionality (*extract_impurities_and_detect_shape_spatial_anomaly*) and *Area Anomaly* functionality (*extract_impurities_and_detect_anomaly*) which uses the previous measures to locate and quantify the anomalous areas in the scan.
+1. **impurity_extract.py** - pre-processing the input scan image (using image processing techniqes such as water-shed algorithm). 
+2. **spatial_anomaly.py** - implements the *Spatial Anoamly* functionality, mainly with the Weighted-kth-Neighbour algorithm.
+2. **shape_anomaly.py** - pre-step to *Shape Anoamly* functionality, it mainly calculates the difference between areas of each impurity to its minimal enclosing circle. It is used for creating the training set to the auto-encoder model described next.
+2. **neural_net.py** - the auto-encoder neural network model that is responsible for training and loading data for the *Shape Anoamly*.
+3. **use_model.py** - uses the neural network for prediction and evaluating the reconstruction loss, ass well as testing for the *Shape Anoamly*.
+2. **area_anomaly.py** - implements the *Area Anoamly* functionality, mainly with the Market-Clustering algorithm.
+
+To run the program use:
+python3 anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/*"> --model_name="<auto-encoder-model-name>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
+
 
 ## Data
-All data can be found in the directory *data/* . The seperation into two classes that we used for the Neural Network training and validation can be found in the directory *data/data_two_classes*.
+The data-set can be found at tags_png_cropped
+
