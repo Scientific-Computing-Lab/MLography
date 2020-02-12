@@ -1,16 +1,18 @@
 import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=FutureWarning)
-    from keras.models import load_model
-    from keras.preprocessing import image
+    import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    from tensorflow.keras.models import load_model
+    import tensorflow as tf
+    from tensorflow.keras.preprocessing import image
+    # from tensorflow.keras.preprocessing.image import ImageDataGenerator
+    from tensorflow.keras.preprocessing.image import array_to_img, save_img, ImageDataGenerator
     import matplotlib.pyplot as plt
     import numpy as np
-    from keras.preprocessing.image import ImageDataGenerator
-    from keras.preprocessing.image import array_to_img
-    from keras.preprocessing.image import save_img
     from sklearn.metrics import mean_squared_error
-    from PIL import Image
-    import os
+    from skimage import measure
+    # from skimage.measure import structural_similarity as ssim
     import re
     import cv2 as cv
     import ray
@@ -18,7 +20,7 @@ with warnings.catch_warnings():
     from glob import glob
 
 
-def load_image(img_path, height=100, width=100, show=True):
+def load_image(img_path, height=100, width=100):
 
     img = image.load_img(img_path, target_size=(height, width), color_mode = "grayscale")
     img_tensor = image.img_to_array(img)                    # (height, width, channels)
@@ -35,96 +37,98 @@ def fixed_generator_none(generator):
         yield (batch, batch)
 
 
-def test_2_impurities(model_name='./model.h5', height=100, width=100):
-    model = load_model(model_name)
+def postprocess_prediction(prediction):
+    image = np.array(prediction)
+    image *= 255
+    image = 255 - image
+    ret, thresh = cv.threshold(image, 100, 255, cv.THRESH_BINARY_INV)
+
+    # noise removal
+    kernel = np.ones((3, 3), np.uint8)
+
+    # post_img = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel, iterations=3)
+    # post_img = cv.morphologyEx(thresh, cv.MORPH_OPEN, kernel, iterations=3)
+
+    post_img = cv.morphologyEx(thresh, cv.MORPH_DILATE, kernel, iterations=3)
+    post_img = cv.morphologyEx(post_img, cv.MORPH_ERODE, kernel, iterations=3)
+
+    return post_img
+    # return image
+    # return thresh
+
+
+def test_prediction(model, img_path, height, width, img_name, out_path):
+    img = cv.imread(img_path)
+    save_img(out_path + img_name + '.jpg', img)
+
+    img = load_image(img_path, height, width)
+    pred = model.predict(img)
+    pred_img = postprocess_prediction(pred[0, :, :, :])
+
+    l11 = measure.compare_ssim(img[0, :, :, 0], pred[0, :, :, 0])
+    l12 = measure.compare_ssim(img[0, :, :, 0], pred_img)
+    l13 = mean_squared_error(img[0, :, :, 0], pred[0, :, :, 0])
+    l14 = mean_squared_error(img[0, :, :, 0], pred_img)
+    # print("predicted {}, ssim loss is={}".format(img_name, l11))
+    # print("predicted {} post, ssim loss is={}".format(img_name, l12))
+    print("predicted {}, mse loss is={}".format(img_name, l13))
+    print("predicted {} post, mse loss is={}".format(img_name, l14))
+
+    save_img(out_path + 'reconstructed_' + img_name + '.jpg', pred[0, :, :, :])
+
+    pred_img = np.expand_dims(pred_img, axis=2)
+    save_img(out_path + 'reconstructed_post_' + img_name + '.jpg', pred_img)
+
+
+def test_impurities(model_name, height=100, width=100, out_path='./'):
+    model = tf.keras.models.load_model(model_name)
 
     normal_imp = glob("./data/test_scan3tag-48/*/*impurity_242.png")[0]
-    # normal_imp = "./data/test_rescaled_extended/normal/test/0.151907915704087scan3tag-48_impurity_242.png"
 
     anomaly_imp = glob("./data/test_scan2tag-34/*/*impurity_875.png")[0]
-    print(anomaly_imp)
-    # anomaly_imp = "./data/test_rescaled_extended/anomaly/test/0.624159885095173scan2tag-34_impurity_875.png"
 
     anomaly_line = glob("./data/test_scan1tag-47/*/*impurity_1056.png")[0]
-    # anomaly_line = "./data/test_rescaled_extended/anomaly/test/0.93742507727708scan1tag-47_impurity_1056.png"
 
     anomaly_imp717 = glob("./data/test_scan1tag-47/*/*impurity_717.png")[0]
-    # anomaly_imp717 = "./data/test_scan1tag-47/scan1tag-47/0.8692158152501969scan1tag-47_impurity_717.png"
 
-    model.compile(loss="mean_squared_error",
-                  optimizer='rmsprop',
-                  metrics=['accuracy'])
+    anomaly_imp699 = glob("./data/test_scan1tag-47/*/*impurity_699.png")[0]
 
-    # load a single image
-    new_image_anomaly = load_image(anomaly_imp, height, width)
+    normal_imp2228 = glob("./data/test_scan1tag-47/*/*impurity_2228.png")[0]
 
-    new_image_anomaly_line = load_image(anomaly_line, height, width)
+    normal_imp2345 = glob("./data/test_scan1tag-47/*/*impurity_2345.png")[0]
 
-    new_image_anomaly717 = load_image(anomaly_imp717, height, width)
+    normal_imp2258 = glob("./data/test_scan1tag-47/*/*impurity_2258.png")[0]
 
-    new_image_normal = load_image(normal_imp, height, width)
-    print("loaded images")
+    normal_imp2131 = glob("./data/test_scan1tag-47/*/*impurity_2131.png")[0]
 
-    # check prediction
-    pred_a = model.predict(new_image_anomaly)
-    print("predicted anomaly")
+    normal_imp2309 = glob("./data/test_scan1tag-47/*/*impurity_2309.png")[0]
 
-    pred_a_line = model.predict(new_image_anomaly_line)
-    print("predicted line anomaly")
+    test_prediction(model, normal_imp, height, width, "normal", out_path)
+    test_prediction(model, anomaly_imp, height, width, "anomaly", out_path)
+    test_prediction(model, anomaly_line, height, width, "anomaly_line", out_path)
+    test_prediction(model, anomaly_imp717, height, width, "anomaly_717", out_path)
+    test_prediction(model, anomaly_imp699, height, width, "anomaly_699", out_path)
+    test_prediction(model, normal_imp2228, height, width, "normal2228", out_path)
+    test_prediction(model, normal_imp2345, height, width, "normal2345", out_path)
+    test_prediction(model, normal_imp2258, height, width, "normal2258", out_path)
+    test_prediction(model, normal_imp2131, height, width, "normal2131", out_path)
+    test_prediction(model, normal_imp2309, height, width, "normal2309", out_path)
 
-    pred_a717 = model.predict(new_image_anomaly717)
-    print("predicted anomaly 717")
 
-    pred_n = model.predict(new_image_normal)
-    print("predicted normal")
+    # Write the net summary
+    with open(out_path + 'summary.txt', 'w') as fh:
+        # Pass the file handle in as a lambda function to make it callable
+        model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
-    # print prediction
-    # print('Predicted anomaly:', pred_a)
-    # print('Predicted normal:', pred_n)
-
-    save_img('reconstructed_anomaly.jpg', pred_a[0])
-    save_img('reconstructed_anomaly_line.jpg', pred_a_line[0])
-    save_img('reconstructed_anomaly_717.jpg', pred_a717[0])
-
-    save_img('reconstructed_normal.jpg', pred_n[0])
     print("saved images")
 
-    # fig, ((ax11, ax12, ax13, ax14), (ax21, ax22, ax23, ax24)) = plt.subplots(2, 4)
-    #
-    # ax11.imshow(cv.imread(normal_imp))
-    # ax12.imshow(cv.imread(anomaly_imp))
-    # ax13.imshow(cv.imread(anomaly_line))
-    # ax14.imshow(cv.imread(anomaly_imp717))
-    #
-    # ax21.imshow(np.expand_dims(pred_n[0], axis=0))
-    # ax22.imshow(np.expand_dims(pred_a[0], axis=0))
-    # ax23.imshow(np.expand_dims(pred_a_line[0], axis=0))
-    # ax24.imshow(np.expand_dims(pred_a717[0], axis=0))
-    #
-    # plt.show()
 
-
-
-    # print("len anomal: " + str(pred_a.shape))
-    # print("len normal: " + str(pred_n.shape))
-    #
-    # # display reconstruction
-    # plt.figure(figsize=(1, 2))
-    #
-    # # display anomaly reconstruction
-    # ax = plt.subplot(1, 2, 1)
-    # plt.imshow(pred_a[0], cmap='gray')
-    #
-    # # display normal reconstruction
-    # ax = plt.subplot(1, 2, 2)
-    # plt.imshow(pred_n[0], cmap='gray')
-    # plt.show()
-    # plt.savefig('reconstruct.png')
 
 
 def get_score_from_prediction(input, prediction):
     loss = mean_squared_error(input, prediction)
-    return loss ** 4
+    # loss = measure.compare_ssim(input, prediction)
+    return loss
 
 @ray.remote
 def get_scores_single(files_chunk, path, pred_chunk):
@@ -136,7 +140,16 @@ def get_scores_single(files_chunk, path, pred_chunk):
         imp_num = int(re.search(r'\d+', img_name).group())
 
         input_image = load_image(path + files_chunk[i])
-        impurity_anomaly_shape_scores[i] = get_score_from_prediction(input_image[0,:,:,0], pred_chunk[i][:,:,0])
+        post_pred = postprocess_prediction(pred_chunk[i][:,:,0])
+        impurity_anomaly_shape_scores[i] = get_score_from_prediction(input_image[0, :, :, 0], post_pred)
+
+        # if impurity_anomaly_shape_scores[i] is np.infty:
+        #     img = cv.imread(path + files_chunk[i])
+        #     save_img("/home/matanr/MLography/logs/shape/under_thresh/" + "imp" + str(imp_num) + ".png", img)
+        #     pred_img = np.expand_dims(post_pred, axis=2)
+        #     save_img("/home/matanr/MLography/logs/shape/under_thresh/" + "post_recon" + str(imp_num) + ".png", pred_img)
+        #     save_img("/home/matanr/MLography/logs/shape/under_thresh/" + "recon" + str(imp_num) + ".png", pred_chunk[i][:,:,:])
+
         chunk_indices.append(imp_num)
     return chunk_indices, impurity_anomaly_shape_scores
 
@@ -144,14 +157,10 @@ def get_scores_single(files_chunk, path, pred_chunk):
 def predict(path, impurities_num, model=None, model_name='./model_ae_extended.h5',
             height=100, width=100, BATCH_SIZE=64):
     if model is None:
-        model = load_model(model_name)
-
-        model.compile(loss='mse',
-                      optimizer='rmsprop',
-                      metrics=['accuracy'])
+        model = tf.keras.models.load_model(model_name)
 
     datagen = ImageDataGenerator(rescale=1. / 255)
-    test_it = datagen.flow_from_directory(path, target_size=(height, width), class_mode=None,
+    test_it = datagen.flow_from_directory(path, target_size=(height, width), class_mode=None, shuffle=False,
                                           batch_size=BATCH_SIZE,  color_mode='grayscale')
     filenames = test_it.filenames
     samples_num = len(filenames)
@@ -219,8 +228,42 @@ def predict_not_parallel(path, impurities_num, model_name='./model_ae_extended.h
     # return impurity_anomaly_shape_reconstruct_loss
     return impurity_anomaly_shape_scores
 
+
+def check_post_process(img_path, out_dir):
+    img = cv.imread(img_path)
+    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
+    post_img = postprocess_prediction(gray)
+
+
+    out_img = np.expand_dims(post_img, axis=2)
+    img_base_name = os.path.basename(img_path)
+    save_img(out_dir + 'check_post_' + img_base_name, out_img)
+
+
 if __name__ == "__main__":
-    test_2_impurities('./model_backup.h5')
+    # check_post_process("/home/matanr/MLography/logs/shape/under_thresh/recon303.png",
+    #                    "/home/matanr/MLography/logs/shape/under_thresh/")
+    print("ae_model_same_label")
+    test_impurities('./ae_model_same_label.h5',
+                    out_path='/home/matanr/MLography/logs/shape/reconstructed_ae_model_same_label/')
+    print("ae_model_blank_label")
+    test_impurities('./ae_model_blank_label.h5',
+                    out_path='/home/matanr/MLography/logs/shape/reconstructed_ae_model_blank_label/')
+    print("older")
+    test_impurities('./ae_blank_label.h5', out_path='/home/matanr/MLography/logs/shape/reconstructed_ae_blank_label/')
+
+
+    # test_impurities('./model_ae.h5',
+    #                   out_path='/home/matanr/MLography/logs/shape/reconstructed_old_model/')
+    # test_impurities('./model_blank_label.h5',
+    #                   out_path='/home/matanr/MLography/logs/shape/reconstructed_model_blank_label/')
+
+
+
+    # test_impurities('./smaller_blank_label.h5',
+    #                   out_path='/home/matanr/MLography/logs/shape/reconstructed_blank_label/')
+
     # predict(path, impurities_num, model_name='./model.h5', height=600, width=600, BATCH_SIZE=64)
 
 

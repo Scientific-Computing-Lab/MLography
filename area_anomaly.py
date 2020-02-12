@@ -11,6 +11,7 @@ with warnings.catch_warnings():
     import matplotlib
     import cv2 as cv
     import os
+    import gc
 
 
 class CheapImpCouple:
@@ -256,11 +257,14 @@ class MarketClustering:
                 cluster["order_keys"].append({"name": "diameter", "score": diameter})
                 if diameter != 0:
                     cluster["order_keys"].append({"name": "amount_div_diameter", "score": amount / diameter})
+                    cluster["order_keys"].append({"name": "amount_mult_diameter", "score": amount * diameter})
                     cluster["order_keys"].append({"name": "sum_div_diameter", "score": sum(cluster_anomaly_scores)
                                                                                        / diameter})
                 else:
                     cluster["order_keys"].append({"name": "amount_div_diameter", "score": -1})
+                    cluster["order_keys"].append({"name": "amount_mult_diameter", "score": -1})
                     cluster["order_keys"].append({"name": "sum_div_diameter", "score": -1})
+                # clusters_order_in_scan.append(amount * diameter)
 
 
             if areas is not None and imp_boxes is not None:
@@ -272,24 +276,28 @@ class MarketClustering:
                 anomaly_areas_scores = [self.anomaly_scores[i] * areas[i] for i in cluster["impurities_inside"]]
                 cluster["order_keys"].append({"name": "weighted_area_sum_mult_diameter",
                                               "score": sum(anomaly_areas_scores) * diameter})
+                weighted_area_sum_mult_diameter_mult_amount = sum(anomaly_areas_scores) * diameter * amount
+                cluster["order_keys"].append({"name": "weighted_area_sum_mult_diameter_mult_amount",
+                                              "score": weighted_area_sum_mult_diameter_mult_amount})
+                clusters_order_in_scan.append(weighted_area_sum_mult_diameter_mult_amount)
                 anomaly_areas_scores = [self.anomaly_scores[i] ** 2 * areas[i] for i in cluster["impurities_inside"]]
-                cluster["order_keys"].append({"name": "weighted2_area_sum_mult_diameter",
-                                              "score": sum(anomaly_areas_scores) * diameter})
+                # cluster["order_keys"].append({"name": "weighted2_area_sum_mult_diameter",
+                #                               "score": sum(anomaly_areas_scores) * diameter})
                 anomaly_areas_scores = [self.anomaly_scores[i] * areas[i] ** 2 for i in cluster["impurities_inside"]]
                 cluster["order_keys"].append({"name": "weighted_area2_sum_mult_diameter",
                                               "score": sum(anomaly_areas_scores) * diameter})
                 weighted_area2_sum_mult_diameter_mult_amount = sum(anomaly_areas_scores) * diameter * amount
                 cluster["order_keys"].append({"name": "weighted_area2_sum_mult_diameter_mult_amount",
                                               "score": weighted_area2_sum_mult_diameter_mult_amount})
-                clusters_order_in_scan.append(weighted_area2_sum_mult_diameter_mult_amount)
+                # clusters_order_in_scan.append(weighted_area2_sum_mult_diameter_mult_amount)
 
                 anomaly_areas_scores = [self.anomaly_scores[i] * areas[i] for i in cluster["impurities_inside"]]
-                cluster["order_keys"].append({"name": "weighted2_area2_sum_mult_diameter",
-                                              "score": sum(np.array(anomaly_areas_scores) ** 2) * diameter})
-                cluster["order_keys"].append({"name": "weighted_area_sum2_mult_diameter",
-                                              "score": sum(np.array(anomaly_areas_scores)) ** 2 * diameter})
-                cluster["order_keys"].append({"name": "weighted_area_sum_mult_diameter2",
-                                              "score": sum(np.array(anomaly_areas_scores)) * diameter ** 2})
+                # cluster["order_keys"].append({"name": "weighted2_area2_sum_mult_diameter",
+                #                               "score": sum(np.array(anomaly_areas_scores) ** 2) * diameter})
+                # cluster["order_keys"].append({"name": "weighted_area_sum2_mult_diameter",
+                #                               "score": sum(np.array(anomaly_areas_scores)) ** 2 * diameter})
+                # cluster["order_keys"].append({"name": "weighted_area_sum_mult_diameter2",
+                #                               "score": sum(np.array(anomaly_areas_scores)) * diameter ** 2})
         indices = np.argsort(clusters_order_in_scan)
         self.anomaly_clusters = [self.anomaly_clusters[indices[i]] for i in range(len(self.anomaly_clusters))]
 
@@ -380,6 +388,19 @@ class MarketClustering:
             plt.savefig(save_plot_path)
 
 
+def create_sub_histogram(histograms_sub_dir, name, scores):
+    max_minus_min = np.ptp(scores)
+    if max_minus_min != 0:
+        normalized_scores = (scores - np.min(scores)) / max_minus_min
+    else:
+        normalized_scores = np.ones(scores.shape)
+    fig = plt.figure(name)
+    plt.hist(normalized_scores)
+    plt.title(name)
+    plt.savefig(histograms_sub_dir + "/" + name + ".png", dpi=fig.dpi)
+    plt.close()
+
+
 def order_clusters(anomaly_clusters_json_file, ordered_clusters_json_file, order_histograms_path=None, order_keys=None,
                    save_ordered_dir="./logs/area/ordered_clusters"):
     if not os.path.exists(order_histograms_path):
@@ -389,57 +410,79 @@ def order_clusters(anomaly_clusters_json_file, ordered_clusters_json_file, order
     sorted_clusters_json = []
     with open(anomaly_clusters_json_file, "r") as anomaly_clusters_json:
         data = json.load(anomaly_clusters_json)
-        if len(data) == 0 or len(data[0]["clusters"]) == 0:
-            return
-        if order_keys is None:
-            order_keys = [order_key["name"] for order_key in data[0]["clusters"][0]["order_keys"]]
-        for i, order_key in enumerate(order_keys):
-            clusters_scores = []
-            for scan in data:
-                for cluster in scan["clusters"]:
-                    clusters_scores.append([scan["plot_path"], cluster["cluster_name"],
-                                            cluster["order_keys"][i]["score"]])
-            # dtype = [('path', str), ('name', str), ('score', float)]
-            # clusters_scores = np.array(clusters_scores, dtype=dtype)
-            ordered_key = {}
-            ordered_key["key_name"] = order_key
-            ordered_key["sorted_clusters"] = []
-            sorted_clusters = sorted(clusters_scores, key=lambda x: x[2], reverse=True)
-            scores_only = np.array(sorted_clusters)[:, 2]
-            # print(scores_only.shape)
-            scores_only = scores_only.astype(np.float)
-            normalized_scores = (scores_only - np.min(scores_only)) / np.ptp(scores_only)
-            for cluster_id, cluster in enumerate(sorted_clusters):
-                cluster_json = {}
-                cluster_json["path"] = cluster[0]
-                cluster_json["cluster_name"] = cluster[1]
-                cluster_json["score"] = cluster[2]
-                cluster_json["norm_score"] = normalized_scores[cluster_id]
-                ordered_key["sorted_clusters"].append(cluster_json)
-            sorted_clusters_json.append(ordered_key)
-            # order_histograms
-            if order_histograms_path is not None:
-                order_scores = normalized_scores
-                fig = plt.figure(order_key)
-                plt.hist(order_scores, log=True)
-                plt.title(order_key)
-                plt.savefig(order_histograms_path+"/"+order_key, dpi=fig.dpi)
+    if len(data) == 0 or len(data[0]["clusters"]) == 0:
+        return
+    if order_keys is None:
+        order_keys = [order_key["name"] for order_key in data[0]["clusters"][0]["order_keys"]]
+    for i, order_key in enumerate(order_keys):
+        clusters_scores = []
+        for scan in data:
+            for cluster in scan["clusters"]:
+                clusters_scores.append([scan["plot_path"], cluster["cluster_name"],
+                                        cluster["order_keys"][i]["score"]])
+        # dtype = [('path', str), ('name', str), ('score', float)]
+        # clusters_scores = np.array(clusters_scores, dtype=dtype)
+        ordered_key = {}
+        ordered_key["key_name"] = order_key
+        ordered_key["sorted_clusters"] = []
+        sorted_clusters = sorted(clusters_scores, key=lambda x: x[2], reverse=True)
+        scores_only = np.array(sorted_clusters)[:, 2]
+        scores_only = scores_only.astype(np.float)
+        # scores_only = (scores_only - np.mean(scores_only)) / np.std(scores_only)
+        # scores_only = np.abs(scores_only - np.median(scores_only))
+        normalized_scores = (scores_only - np.min(scores_only)) / np.ptp(scores_only)
+        for cluster_id, cluster in enumerate(sorted_clusters):
+            cluster_json = {}
+            cluster_json["path"] = cluster[0]
+            cluster_json["cluster_name"] = cluster[1]
+            cluster_json["score"] = cluster[2]
+            cluster_json["norm_score"] = normalized_scores[cluster_id]
+            ordered_key["sorted_clusters"].append(cluster_json)
+
+        # order_histograms + percentiles
+        ordered_key["percentiles"] = []
+
+        if order_histograms_path is not None:
+            histograms_sub_dir = order_histograms_path+"/"+order_key
+            if not os.path.exists(histograms_sub_dir):
+                os.makedirs(histograms_sub_dir)
+            plt.close()
+            order_scores = normalized_scores
+            fig = plt.figure(order_key)
+            plt.hist(order_scores, log=True)
+            plt.title(order_key)
+            plt.savefig(histograms_sub_dir+"/all.png", dpi=fig.dpi)
+            plt.close()
+        lower = 0
+        for i in range(1, 11):
+            upper = np.percentile(normalized_scores, i * 10 + np.finfo(float).eps)
+            sub_arr = normalized_scores[(normalized_scores >= lower) & (normalized_scores < upper)]
+            if sub_arr.size > 0:
+                # print(sub_arr)
+                if order_histograms_path is not None:
+                    create_sub_histogram(histograms_sub_dir, "percentile:{}_{}_{}".format(i*10, lower, upper), sub_arr)
+            percentile_json = {}
+            percentile_json["value"] = "{}%-{}%".format((i-1)*10, i*10)
+            percentile_json["lower"] = lower
+            percentile_json["upper"] = upper
+            ordered_key["percentiles"].append(percentile_json)
+            lower = upper
+
+        sorted_clusters_json.append(ordered_key)
     for order in sorted_clusters_json:
-        color_sorted_clusters(order["sorted_clusters"], show_fig=False, save_ordered_dir=save_ordered_dir + "/"
-                                                                                         + order["key_name"])
+        if not os.path.exists(save_ordered_dir + "/" + order["key_name"]):
+            # check-point: color and save order keys with no existing directory (in case of OOM errors)
+            color_sorted_clusters(order["sorted_clusters"], show_fig=False, save_ordered_dir=save_ordered_dir + "/"
+                                                                                             + order["key_name"])
+        gc.collect()
     with open(ordered_clusters_json_file, "w") as ordered_json_file:
         json.dump(sorted_clusters_json, ordered_json_file)
     return sorted_clusters
 
 
-def color_sorted_clusters(sorted_clusters, top_to_show=150, show_fig=True, save_ordered_dir=None):
-    if save_ordered_dir is not None:
-        if not os.path.exists(save_ordered_dir):
-            os.makedirs(save_ordered_dir)
-    plt.close()
-    for cluster_id, cluster in enumerate(sorted_clusters, start=1):
-        if cluster_id > top_to_show:
-            break
+@ray.remote
+def color_sorted_clusters_single(clusters_to_plot, indices_chunk, show_fig, save_ordered_dir):
+    for cluster_id, cluster in zip(indices_chunk, clusters_to_plot):
         bgr_img = cv.imread(cluster["path"])
         img = cv.cvtColor(bgr_img, cv.COLOR_BGR2RGB)
         plt.imshow(img, cmap='jet')
@@ -453,3 +496,61 @@ def color_sorted_clusters(sorted_clusters, top_to_show=150, show_fig=True, save_
             figure = plt.gcf()  # get current figure
             figure.set_size_inches(30, 20)
             plt.savefig(save_ordered_dir+"/"+str(cluster_id)+".png")
+            plt.close()
+
+
+def color_sorted_clusters(sorted_clusters, top_to_show=150, show_fig=True, save_ordered_dir=None):
+    if save_ordered_dir is not None:
+        if not os.path.exists(save_ordered_dir):
+            os.makedirs(save_ordered_dir)
+    plt.close()
+    clusters_to_plot = sorted_clusters[:top_to_show]
+    indices = range(1, top_to_show+1)
+    clusters_to_plot_chunks = np.array_split(clusters_to_plot, num_threads)
+    indices_chunks = np.array_split(indices, num_threads)
+
+    tasks = list()
+    for i in range(num_threads):
+        tasks.append(color_sorted_clusters_single.remote(clusters_to_plot_chunks[i], indices_chunks[i],
+                                                         show_fig, save_ordered_dir))
+    for i in range(num_threads):
+        ray.get(tasks[i])
+
+
+def color_sorted_clusters_not_parallel(sorted_clusters, top_to_show=150, show_fig=True, save_ordered_dir=None):
+    if save_ordered_dir is not None:
+        if not os.path.exists(save_ordered_dir):
+            os.makedirs(save_ordered_dir)
+    plt.close()
+    clusters_to_plot = sorted_clusters[:top_to_show]
+    for cluster_id, cluster in enumerate(clusters_to_plot, start=1):
+
+        bgr_img = cv.imread(cluster["path"])
+        img = cv.cvtColor(bgr_img, cv.COLOR_BGR2RGB)
+        plt.imshow(img, cmap='jet')
+        cluster_name_id = cluster["cluster_name"][cluster["cluster_name"].find("_")+1:]
+        plt.title("#" + str(cluster_id) + ": " + cluster_name_id)
+                  # + "\n" + str(cluster["score"]))
+
+        if show_fig:
+            plt.show()
+        elif save_ordered_dir is not None:
+            figure = plt.gcf()  # get current figure
+            figure.set_size_inches(30, 20)
+            plt.savefig(save_ordered_dir+"/"+str(cluster_id)+".png")
+
+
+def print_clusters_of_img_in_order(ordered_clusters_json_file, order_name, scan_file_name):
+    input_scan_name = os.path.splitext(os.path.basename(scan_file_name))[0]
+    with open(ordered_clusters_json_file, "r") as ordered_json_file:
+        data = json.load(ordered_json_file)
+    for order in data:
+        if order["key_name"] == order_name:
+            for cluster_id, cluster in enumerate(order["sorted_clusters"]):
+                if os.path.splitext(os.path.basename(cluster["path"]))[0] == input_scan_name:
+                    for perc in order["percentiles"]:
+                        if (cluster["norm_score"] >= perc["lower"]) and (cluster["norm_score"] < perc["upper"] + np.finfo(float).eps):
+                            print("num in order: {}\nname in scan: {}\nscore: {}\nnormalized score: {}\n"
+                                  "percentile range: {}\n".format(cluster_id, cluster["cluster_name"], cluster["score"],
+                                                                cluster["norm_score"], perc["value"]))
+            return

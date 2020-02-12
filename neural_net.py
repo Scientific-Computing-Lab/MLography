@@ -13,7 +13,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D, Reshape, Flatten, Dropout, Activation
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras import backend as K
-from keras.layers.normalization import BatchNormalization
+# from keras.layers.normalization import BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import TensorBoard
 
@@ -64,37 +64,66 @@ def conv_autoencoder(input_shape, WIDTH, HEIGHT):
     ae.compile(optimizer=optimizer, loss='mse', metrics=['accuracy'])
     return ae
 
-
-def smaller_conv_autoencoder(input_shape, WIDTH, HEIGHT):
+def conv_autoencoder_no_drop(input_shape, WIDTH, HEIGHT):
     input_img = Input(shape=input_shape)
 
     # encode with a deep net
-    x = Conv2D(16, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(input_img)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Dropout(0.3)(x)
 
-    x = Conv2D(8, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Dropout(0.3)(x)
 
-    x = Conv2D(8, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
     encoded = MaxPooling2D((2, 2), padding='same')(x)
-    x = Dropout(0.3)(encoded)
 
-    x = Conv2D(8, (3, 3), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(encoded)
     x = UpSampling2D((2, 2))(x)
-    x = Dropout(0.3)(x)
 
-    x = Conv2D(8, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
     x = UpSampling2D((2, 2))(x)
-    x = Dropout(0.3)(x)
 
-    x = Conv2D(16, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
+    x = UpSampling2D((2, 2))(x)
+
+    x = Conv2D(256, (5, 5), activation='relu', kernel_initializer='random_uniform')(x)
     decoded = UpSampling2D((2, 2))(x)
 
     x = Flatten()(decoded)
+    x = Dense(500, activation='relu')(x)
+    x = Dense(1*WIDTH*HEIGHT, activation='sigmoid')(x)
+    result = Reshape(input_shape)(x)
 
-    # x = Dense(500, activation='relu')(x)
+    ae = Model(input_img, result)
+    optimizer = Adam(lr=1e-05, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    ae.compile(optimizer=optimizer, loss='mse', metrics=['accuracy'])
+    return ae
+
+
+def smaller_conv_autoencoder(input_shape, WIDTH, HEIGHT):
+    input_img = Input(shape=input_shape)
+    x = input_img
+
+    depth = 4
+
+    for encoding_layer in range(depth):
+        x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+        x = MaxPooling2D((2, 2), padding='same')(x)
+        # x = Dropout(0.3)(x)
+
+    for decoding_layer in range(depth-1):
+        x = Conv2D(256, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+        x = UpSampling2D((2, 2))(x)
+        # x = Dropout(0.3)(x)
+
+    # x = Conv2D(128, (5, 5), activation='relu', padding='same', kernel_initializer='random_uniform')(x)
+    # decoded = UpSampling2D((2, 2))(x)
+    x = Flatten()(x)
+
+    x = Dense(500, activation='relu')(x)
     x = Dense(1*WIDTH*HEIGHT, activation='sigmoid')(x)
     result = Reshape(input_shape)(x)
 
@@ -171,7 +200,7 @@ def main(_):
 
 
     # create generator
-    datagen = ImageDataGenerator(rescale=1. / 255)
+    datagen = ImageDataGenerator(rescale=1. / 255, horizontal_flip=True, vertical_flip=True, rotation_range=360)
     # datagen = ImageDataGenerator()
     # prepare an iterators for each dataset
     if FLAGS.anomaly_blank_label:
@@ -192,7 +221,7 @@ def main(_):
         input_shape = (WIDTH, HEIGHT, 1)
 
     # model = conv_autoencoder(input_shape, WIDTH, HEIGHT)
-    model = smaller_conv_autoencoder(input_shape, WIDTH, HEIGHT)
+    model = conv_autoencoder_no_drop(input_shape, WIDTH, HEIGHT)
 
     tbCallBack = TensorBoard(log_dir='./Graph/{}'.format(time()), histogram_freq=0, write_graph=True, write_images=True)
 
@@ -207,8 +236,11 @@ def main(_):
     else:
         history = model.fit_generator(fixed_generator_none(train_it), epochs=EPOCHS_NUM,
                                       validation_data=fixed_generator_none(val_it),
-                                      validation_steps=8,
-                                      steps_per_epoch=16, workers=8, use_multiprocessing=True, callbacks=[tbCallBack])
+                                      validation_steps=8, steps_per_epoch=16, callbacks=[tbCallBack])
+        # history = model.fit_generator(fixed_generator_none(train_it), epochs=EPOCHS_NUM,
+        #                               validation_data=fixed_generator_none(val_it),
+        #                               validation_steps=8,
+        #                               steps_per_epoch=16, workers=8, use_multiprocessing=True, callbacks=[tbCallBack])
 
 
     test_it_normal = datagen.flow_from_directory('data/test_rescaled_extended/normal/', target_size=(HEIGHT, WIDTH),

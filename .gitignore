@@ -4,4 +4,5 @@ __pycache__/
 model.h5
 model_ae.h5
 model_ae_extended.h5
-data/*
+model_backup.h5
+data/

@@ -2,6 +2,7 @@ import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore",category=FutureWarning)
     import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     import numpy as np
     import cv2 as cv
     import matplotlib.pyplot as plt
@@ -10,15 +11,16 @@ with warnings.catch_warnings():
     from use_model import predict, predict_not_parallel
     import ray
     import time
-    from area_anomaly import MarketClustering, order_clusters, color_sorted_clusters
+    from area_anomaly import MarketClustering, order_clusters, color_sorted_clusters, print_clusters_of_img_in_order
     from absl import flags
     from absl import app
     from spatial_anomaly import weighted_kth_nn, weighted_kth_nn_not_parallel
-    from shape_anomaly import get_circle_impurity_score
+    from shape_anomaly import get_circle_impurity_score, color_circle_diff_all_impurities
     from impurity_extract import extract_impurities
     from glob import glob
     import gc
-    from keras.models import load_model
+    # from tensorflow.keras.models import load_model
+    import tensorflow as tf
 
     FLAGS = flags.FLAGS
     flags.DEFINE_boolean('use_ray', True, 'Use ray parallelisation or not.')
@@ -67,12 +69,50 @@ def shape_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, d
     else:
         shape_reconstruct_loss = predict_not_parallel(path=dest_path, impurities_num=imp_boxes.shape[0])
 
-    shape_reconstruct_loss = shape_reconstruct_loss - np.min(shape_reconstruct_loss)
-    # small impurities are not anomalous, thus the loss is 0
-    shape_reconstruct_loss[np.where(np.isinf(shape_reconstruct_loss))] = 0
-    norm_reconstruct_loss = shape_reconstruct_loss / np.ptp(shape_reconstruct_loss)
+    nonzero_indx = np.ma.masked_greater(shape_reconstruct_loss, 0)
+    finite_indx = np.isfinite(shape_reconstruct_loss)
 
-    return norm_reconstruct_loss
+    valid_scores = np.logical_and(nonzero_indx, finite_indx)
+
+    # min_val = np.min(shape_reconstruct_loss[big])
+    # min_indx = np.argwhere(shape_reconstruct_loss == min_val)
+    # print("min_index: ")
+    # print(min_indx)
+    # print("min_value: ")
+    # print(min_val)
+    # print("min_area: ")
+    # print(areas[min_indx])
+    #
+    # max_val = np.max(shape_reconstruct_loss[big])
+    # max_indx = np.argwhere(shape_reconstruct_loss == max_val)
+    # print("max_index: ")
+    # print(max_indx)
+    # print("max_value: ")
+    # print(max_val)
+    # print("max_area: ")
+    # print(areas[max_indx])
+
+    # fig = plt.figure("big_shape_reconstruct_loss")
+    # plt.hist(shape_reconstruct_loss[big])
+    # plt.title("big_shape_reconstruct_loss")
+    # plt.show()
+
+    # print("shape_reconstruct_loss[big]")
+    # print(shape_reconstruct_loss[big])
+    # print("shape_reconstruct_loss")
+    # print(shape_reconstruct_loss)
+
+    shape_reconstruct_loss[valid_scores] = \
+        (shape_reconstruct_loss[valid_scores] - np.min(shape_reconstruct_loss[valid_scores]))\
+        / np.ptp(shape_reconstruct_loss[valid_scores])
+    # small impurities are not anomalous, thus the loss is 0
+    # shape_reconstruct_loss[np.where(np.isinf(shape_reconstruct_loss))] = 0
+    shape_reconstruct_loss[~valid_scores] = 0
+
+    # shape_reconstruct_loss = shape_reconstruct_loss ** 2
+    # shape_reconstruct_loss = (shape_reconstruct_loss - np.min(shape_reconstruct_loss)) / np.ptp(shape_reconstruct_loss)
+
+    return shape_reconstruct_loss
 
 
 # split to smaller functions, and move to shape_anomaly.py
@@ -173,9 +213,9 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
 
     plt.show()
 
-    cv.imwrite('anomaly_detection.png', blank_image[k_list[0]])
-    cv.imwrite('SHAPE_anomaly_detection.png', blank_image_s[k_list[0]])
-    cv.imwrite('LOCAL_anomaly_detection.png', blank_image_l[k_list[0]])
+    # cv.imwrite('anomaly_detection.png', blank_image[k_list[0]])
+    # cv.imwrite('SHAPE_anomaly_detection.png', blank_image_s[k_list[0]])
+    # cv.imwrite('LOCAL_anomaly_detection.png', blank_image_l[k_list[0]])
 
 
 def extract_impurities_and_detect_anomaly(img_path, model=None, need_to_write_for_ae=False):
@@ -190,6 +230,12 @@ def extract_impurities_and_detect_shape_anomaly(img_path, model=None, need_to_wr
     shape_and_spatial_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, "./data/test_" +
                                                  name_without_ext + "/", scan_name=name_without_ext + "/",
                                                  model=model, need_plot=True, need_to_write=need_to_write_for_ae)
+
+
+def extract_impurities_and_find_circle_diff(img_path):
+    img, ret, markers, imp_boxes, areas, indices = extract_impurities(img_path, FLAGS.use_ray, FLAGS.min_threshold)
+    color_circle_diff_all_impurities(img, markers, imp_boxes, areas, indices, "./logs/shape")
+
 
 def main(_):
     if FLAGS.use_ray:
@@ -208,49 +254,30 @@ def main(_):
 
     files = glob(FLAGS.input_scans)
 
-    model = load_model(FLAGS.model_name)
+    # model = tf.keras.models.load_model(FLAGS.model_name)
+    #
+    #
+    # for file in files:
+    #     # extract_impurities_and_find_circle_diff(file)
+    #     # return
+    #     # extract_impurities_and_detect_shape_anomaly(file, model=model, need_to_write_for_ae=True)
+    #     # return
+    #     if not os.path.exists(FLAGS.plots_dir + "/" + os.path.basename(file)):
+    #         extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True)
+    #         gc.collect()
+    # print("~~~~ starting to order the clusters ~~~~")
+    #
+    # order_clusters(FLAGS.clusters_scores_log, FLAGS.ordered_clusters_scores,
+    #                order_histograms_path=FLAGS.order_histogram, save_ordered_dir=FLAGS.save_ordered_dir)
 
-    model.compile(loss='mse',
-                  optimizer='rmsprop',
-                  metrics=['accuracy'])
-
-    # extract_impurities_and_detect_shape_anomaly('./tags_png_cropped/scan1tag-20.png', model=model)
-    # return
+    print("~~~~ starting to print number in orders ~~~~")
 
     for file in files:
-        extract_impurities_and_detect_shape_anomaly(file, model=model, need_to_write_for_ae=False)
-        # extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True)
-        gc.collect()
-    return
-
-    # extract_impurities_and_detect_anomaly('./tags_png_cropped/scan1tag-47.png')
-    # extract_impurities_and_detect_anomaly('./tags_png_cropped/scan1tag-46.png')
-    # extract_impurities_and_detect_anomaly('./tags_png_cropped/scan1tag-45.png')
-    # extract_impurities_and_detect_anomaly('./tags_png_cropped/scan1tag-43.png')
-    # extract_impurities_and_detect_anomaly('./tags_png_cropped/scan1tag-42.png')
-    order_clusters(FLAGS.clusters_scores_log, FLAGS.ordered_clusters_scores,
-                   order_histograms_path=FLAGS.order_histogram, save_ordered_dir=FLAGS.save_ordered_dir)
+        print("\nscan name: {}".format(file))
+        print_clusters_of_img_in_order(FLAGS.ordered_clusters_scores, "weighted_area2_sum_mult_diameter_mult_amount",
+                                       file)
 
 
-
-
-
-
-    # area_anomaly_detection('./tags_png_cropped/scan2tag-39.png')
-
-    # only weighted_kth_nn
-    # spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png')
-
-    # different examples of shape and spatial anomaly
-    # shape_and_spatial_anomaly_detection('./tags_png_cropped/scan1tag-47.png', "./data/test_scan1tag-47/", scan_name="scan1tag-47/",
-    #                                     need_to_write=False)
-    # shape_anomaly_detection('./tags_png_cropped/scan2tag-39.png', "./data/test_scan2tag-39/", scan_name="scan2tag-39/",
-    #                         need_to_write=False)
-
-    # shape_anomaly_detection('./tags_png_cropped/scan3tag-55.png', "./data/test_scan3tag-55/", scan_name="scan3tag-55/",
-    #                         need_to_write=False)
-    # shape_anomaly_detection('./tags_png_cropped/scan4tag-11.png', "./data/test_scan4tag-11/", scan_name="scan4tag-11/",
-    #                         need_to_write=False)
 
     # prepare all data
     # normalize_all_impurities("./tags_png_cropped/")

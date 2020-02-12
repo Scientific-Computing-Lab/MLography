@@ -11,7 +11,7 @@ with warnings.catch_warnings():
     import time
     from absl import app
 
-def get_markers(img, min_threshold):
+def get_markers(img, min_threshold, img_name):
     """
     Get the impurities arranged with unique indices from an image (img).
     Applies image processing.
@@ -44,7 +44,7 @@ def get_markers(img, min_threshold):
     markers = cv.watershed(image, markers)
     image[markers == -1] = [0, 0, 255]
 
-    print("number of impurities: " + str(ret))
+    print(img_name + ", number of impurities: " + str(ret))
     return ret, markers
 
 
@@ -187,7 +187,8 @@ def normalize_all_impurities(dir_path):
 
 def extract_impurities(img_path, use_ray, min_threshold=0):
     img = cv.imread(img_path)
-    ret, markers = get_markers(img, min_threshold)
+    img_name = os.path.splitext(os.path.basename(img_path))[0]
+    ret, markers = get_markers(img, min_threshold, img_name)
     if use_ray:
         imp_boxes = save_boxes(markers, ret)
         areas, indices = get_impurity_areas_and_significant_indices(imp_boxes, markers)
