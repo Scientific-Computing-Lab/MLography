@@ -5,6 +5,10 @@ Anomaly Detection for impurities: There are several kinds of anomaly measures:
 2. **Shape Anomaly**: impurities of an non-symmetric shapes are considerd anomalous.
 2. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
 
+# Request
+
+If you found these codes useful for your research, please consider citing MLography
+
 # Instructions
 ## Running
 
