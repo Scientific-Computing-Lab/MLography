@@ -22,13 +22,13 @@ There are several scripts:
 2. **area_anomaly.py** - implements the *Area Anoamly* functionality, mainly with the Market-Clustering algorithm.
 
 To run the program (on a trained auto-encoder model) use:
-python anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/*"> --model_name="<auto-encoder-model-name>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
+python anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/\*"> --model_name="<auto-encoder-model-name>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
 
 ## Training
 
 In order to train the auto-encoder model for the shape anomaly measure, use:
 
-python neural_net.py --model_name=<model name without file extension> --anomaly_blank_label=<True if the use of blank labels for anomalous objects is desired>
+python neural_net.py --model_name="\<model name without file extension\>" --anomaly_blank_label="\<True if the use of blank labels for anomalous objects is desired\>"
 
 
 # Data-set
