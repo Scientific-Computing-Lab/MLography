@@ -1,4 +1,4 @@
-# MLography: An Machine-Learning approach for Metallography
+# MLography: A Machine-Learning approach for Metallography
 
 Anomaly Detection for impurities: There are several kinds of anomaly measures:
 1. **Spatial Anomaly**: impurities that are big and distant compared to their neighborhood are considered anomalous.
