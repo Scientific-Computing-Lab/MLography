@@ -27,6 +27,7 @@ python anomaly_detection.py --input_scans=<input directory of scans, we used "./
 ## Training
 
 In order to train the auto-encoder model for the shape anomaly measure, use:
+
 python neural_net.py --model_name=<model name without file extension> --anomaly_blank_label=<True if the use of blank labels for anomalous objects is desired>
 
 
