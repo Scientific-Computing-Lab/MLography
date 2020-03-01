@@ -5,7 +5,7 @@ Anomaly Detection for impurities: There are several kinds of anomaly measures:
 2. **Shape Anomaly**: impurities of an non-symmetric shapes are considerd anomalous.
 2. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
 
-# Request
+# Citation
 
 If you found these codes useful for your research, please consider citing MLography
 
@@ -21,10 +21,14 @@ There are several scripts:
 3. **use_model.py** - uses the neural network for prediction and evaluating the reconstruction loss, ass well as testing for the *Shape Anoamly*.
 2. **area_anomaly.py** - implements the *Area Anoamly* functionality, mainly with the Market-Clustering algorithm.
 
-To run the program use:
-python3 anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/*"> --model_name="<auto-encoder-model-name>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
+To run the program (on a trained auto-encoder model) use:
+python anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/*"> --model_name="<auto-encoder-model-name>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
+
+## Training
+
+In order to train the auto-encoder model for the shape anomaly measure, use:
+python neural_net.py --model_name="<model name without file extension>" --anomaly_blank_label=<True if the use of blank labels for anomalous objects is desired>
 
 
-## Data
-The data-set can be found at tags_png_cropped
-
+# Data-set
+The data-set can be found at *tags_png_cropped* directory
