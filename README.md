@@ -9,7 +9,7 @@ Anomaly Detection for impurities: There are several kinds of anomaly measures:
 ![Shape Anomaly on a sample image](https://github.com/matanr/MLography/blob/master/Shape_anomaly.png)
 
 ![Spatial and Shape Anomaly combined](https://github.com/matanr/MLography/blob/master/k_%3D_50%2C_Shape_and_Spatial_anomalies_combined.png)
-2. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
+3. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
 
 ![Area Anomaly on a sample image](https://github.com/matanr/MLography/blob/master/scan1tag-47.png)
 # Citation
