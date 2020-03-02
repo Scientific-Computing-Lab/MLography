@@ -2,9 +2,16 @@
 
 Anomaly Detection for impurities: There are several kinds of anomaly measures:
 1. **Spatial Anomaly**: impurities that are big and distant compared to their neighborhood are considered anomalous.
+
+![Spatial Anomaly on a sample image](https://github.com/matanr/MLography/blob/master/spatial.PNG)
 2. **Shape Anomaly**: impurities of an non-symmetric shapes are considerd anomalous.
+
+![Shape Anomaly on a sample image](https://github.com/matanr/MLography/blob/master/Shape_anomaly.png)
+
+![Spatial and Shape Anomaly combined](https://github.com/matanr/MLography/blob/master/k_%3D_50%2C_Shape_and_Spatial_anomalies_combined.png)
 2. **Area Anomaly**: locating and quantifying areas of anomalous impurities.
 
+![Area Anomaly on a sample image](https://github.com/matanr/MLography/blob/master/scan1tag-47.png)
 # Citation
 
 If you found these codes useful for your research, please consider citing MLography
