@@ -16,14 +16,22 @@ with warnings.catch_warnings():
     from absl import app
     from spatial_anomaly import weighted_kth_nn, weighted_kth_nn_not_parallel
     from shape_anomaly import get_circle_impurity_score, color_circle_diff_all_impurities
-    from impurity_extract import extract_impurities
+    from impurity_extract import extract_impurities, normalize_all_impurities
     from glob import glob
     import gc
     # from tensorflow.keras.models import load_model
     import tensorflow as tf
 
     FLAGS = flags.FLAGS
-    flags.DEFINE_boolean('use_ray', True, 'Use ray parallelisation or not.')
+    flags.DEFINE_boolean('use_ray', True, 'Use ray parallelisation or not')
+    flags.DEFINE_boolean('detect', True, 'True if anomaly detection is desired')
+    flags.DEFINE_boolean('order', False, 'True if area clustering is desired')
+    flags.DEFINE_boolean('print_order', False, 'True if printing the precents in which the input areas '
+                                               'resides is desired')
+    flags.DEFINE_boolean('prepare_data', False, 'True if impurity extraction to a scaled image is desired')
+    flags.DEFINE_boolean('prepare_data_path', './tags_png_cropped', 'Path to prepare the data')
+
+
     flags.DEFINE_string("input_scans", './tags_png_cropped/*.png', "Pattern to find input scan images")
     flags.DEFINE_string("area_anomaly_dir", "./logs/area/", "Directory for area anomaly output")
     flags.DEFINE_string("clusters_scores_log", None, "clusters scores log file")
@@ -223,7 +231,8 @@ def extract_impurities_and_detect_anomaly(img_path, model=None, need_to_write_fo
     area_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, model, FLAGS.area_anomaly_dir,
                            need_to_write_for_ae)
 
-def extract_impurities_and_detect_shape_anomaly(img_path, model=None, need_to_write_for_ae=False):
+
+def extract_impurities_and_detect_shape_spatial_anomaly(img_path, model=None, need_to_write_for_ae=False):
     img, ret, markers, imp_boxes, areas, indices = extract_impurities(img_path, FLAGS.use_ray, FLAGS.min_threshold)
     path_base_name = os.path.basename(img_path)
     name_without_ext = os.path.splitext(path_base_name)[0]
@@ -254,33 +263,34 @@ def main(_):
 
     files = glob(FLAGS.input_scans)
 
-    # model = tf.keras.models.load_model(FLAGS.model_name)
-    #
-    #
-    # for file in files:
-    #     # extract_impurities_and_find_circle_diff(file)
-    #     # return
-    #     # extract_impurities_and_detect_shape_anomaly(file, model=model, need_to_write_for_ae=True)
-    #     # return
-    #     if not os.path.exists(FLAGS.plots_dir + "/" + os.path.basename(file)):
-    #         extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True)
-    #         gc.collect()
-    # print("~~~~ starting to order the clusters ~~~~")
-    #
-    # order_clusters(FLAGS.clusters_scores_log, FLAGS.ordered_clusters_scores,
-    #                order_histograms_path=FLAGS.order_histogram, save_ordered_dir=FLAGS.save_ordered_dir)
+    if FLAGS.detect:
+        model = tf.keras.models.load_model(FLAGS.model_name)
 
-    print("~~~~ starting to print number in orders ~~~~")
+        for file in files:
+            if not os.path.exists(FLAGS.plots_dir + "/" + os.path.basename(file)):
+                extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True)
+                gc.collect()
 
-    for file in files:
-        print("\nscan name: {}".format(file))
-        print_clusters_of_img_in_order(FLAGS.ordered_clusters_scores, "weighted_area2_sum_mult_diameter_mult_amount",
-                                       file)
+    if FLAGS.order:
+        print("~~~~ starting to order the clusters ~~~~")
+
+        order_clusters(FLAGS.clusters_scores_log, FLAGS.ordered_clusters_scores,
+                       order_histograms_path=FLAGS.order_histogram, save_ordered_dir=FLAGS.save_ordered_dir)
+
+    if FLAGS.print_order:
+        print("~~~~ starting to print number in orders ~~~~")
+
+        all_scores_and_ranks = {}
+        for file in files:
+            print("\nscan name: {}".format(file))
+            all_scores_and_ranks[file] = print_clusters_of_img_in_order(FLAGS.ordered_clusters_scores,
+                                                                        "weighted_area2_sum_mult_diameter_mult_amount",
+                                                                        file)
 
 
-
-    # prepare all data
-    # normalize_all_impurities("./tags_png_cropped/")
+    if FLAGS.prepare_data:
+        # prepare all data
+        normalize_all_impurities(FLAGS.prepare_data_path)
 
 
 if __name__ == "__main__":

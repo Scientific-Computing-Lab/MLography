@@ -499,7 +499,7 @@ def color_sorted_clusters_single(clusters_to_plot, indices_chunk, show_fig, save
             plt.close()
 
 
-def color_sorted_clusters(sorted_clusters, top_to_show=150, show_fig=True, save_ordered_dir=None):
+def color_sorted_clusters(sorted_clusters, top_to_show=50, show_fig=True, save_ordered_dir=None):
     if save_ordered_dir is not None:
         if not os.path.exists(save_ordered_dir):
             os.makedirs(save_ordered_dir)
@@ -544,6 +544,7 @@ def print_clusters_of_img_in_order(ordered_clusters_json_file, order_name, scan_
     input_scan_name = os.path.splitext(os.path.basename(scan_file_name))[0]
     with open(ordered_clusters_json_file, "r") as ordered_json_file:
         data = json.load(ordered_json_file)
+    scores = []
     for order in data:
         if order["key_name"] == order_name:
             for cluster_id, cluster in enumerate(order["sorted_clusters"]):
@@ -553,4 +554,10 @@ def print_clusters_of_img_in_order(ordered_clusters_json_file, order_name, scan_
                             print("num in order: {}\nname in scan: {}\nscore: {}\nnormalized score: {}\n"
                                   "percentile range: {}\n".format(cluster_id, cluster["cluster_name"], cluster["score"],
                                                                 cluster["norm_score"], perc["value"]))
-            return
+                            score = {}
+                            score["rank"] = cluster_id
+                            score["score"] = cluster["norm_score"]
+                            score["range"] = perc["value"]
+                            score["name"] = cluster["cluster_name"]
+                            scores.append(score)
+            return scores

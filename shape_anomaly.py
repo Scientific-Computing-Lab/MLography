@@ -59,7 +59,9 @@ def color_circle_diff_all_impurities(img, markers, imp_boxes, areas, indices, sa
     # scores = np.maximum(scores, 1e-5)
     # normalized_scores = (scores - np.min(scores)) / np.ptp(scores)
     fig = plt.figure("circle_diff")
-    plt.hist(scores[indx])
+    step = 0.02
+    refined_bins = np.arange(0, 1 + step, step)
+    plt.hist(scores[indx], bins=refined_bins)
     plt.title("circle diff")
     plt.savefig(save_dir_path + "/circle_differences.png" , dpi=fig.dpi)
     color_close_to_cirlce(img, markers, indices, scores, areas, save_dir_path)
