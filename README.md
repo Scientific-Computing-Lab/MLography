@@ -24,11 +24,21 @@ There are several scripts:
 To run the program (on a trained auto-encoder model) use:
 python anomaly_detection.py --input_scans=<input directory of scans, we used "./tags_png_cropped/\*"> --model_name="\<auto-encoder-model-name\>" --min_threshold=<used for pre-processing, we used 30> --area_anomaly_dir=<log direcory for output, default is "./logs/area/">
 
+In order to order all the area anomaly add the flag *order* and if you want to print the precentiles in which all areas of the input scans are placed, add the flag *print_order*.
+
 ## Training
 
-In order to train the auto-encoder model for the shape anomaly measure, use:
+In order to train the auto-encoder model for the shape anomaly measure, on your data use:
 
 python neural_net.py --model_name="\<model name without file extension\>" --anomaly_blank_label=\<True if the use of blank labels for anomalous objects is desired\>
 
+Your data should reside in a directory in data/, then divided to two directories train/ and validation/, in each one will be one directory - normal/, or two directories - anomaly/ and normal/ if the use of blank labels for anomalous objects is desired. These directories should hold all your data.
+
+You may find the following useful:
+
+python anomaly_detection.py --detect=False --order=False --print_order=False prepare_data=True prepare_data_path="\<path to data to be rescaled and prepared\>"
+
+For splitting the data to the needed directories use the *split_data.py* script.
+
 # Data-set
-The data-set can be found at *tags_png_cropped* directory
+The data-set can be found at *tags_png_cropped/* directory
