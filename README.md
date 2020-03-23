@@ -2,7 +2,8 @@
 
 
 # Introduction
-This repository is the implementation of MLography - a framework that measures and marks the anomaly scores of object. In the following output examples from the model, red objects are the most anomalous and blue are the most non-anomalous.
+This repository is the implementation of MLography - a framework that measures and marks the anomaly scores of some geometrical objects. In the following output examples of metallographic scans, red objects (impurities) are the most anomalous and blue are the most non-anomalous.
+## Output examples ##
 In MLography there are several kinds of anomaly measures:
 1. **Spatial Anomaly**: objects (impurities) that are big and distant compared to their neighborhood are considered anomalous:
 
