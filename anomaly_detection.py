@@ -29,7 +29,7 @@ with warnings.catch_warnings():
     flags.DEFINE_boolean('print_order', False, 'True if printing the precents in which the input areas '
                                                'resides is desired')
     flags.DEFINE_boolean('prepare_data', False, 'True if impurity extraction to a scaled image is desired')
-    flags.DEFINE_boolean('prepare_data_path', './tags_png_cropped', 'Path to prepare the data')
+    flags.DEFINE_string('prepare_data_path', './tags_png_cropped', 'Path to prepare the data')
 
 
     flags.DEFINE_string("input_scans", './tags_png_cropped/*.png', "Pattern to find input scan images")
