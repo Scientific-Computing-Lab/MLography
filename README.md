@@ -23,6 +23,20 @@ For more information about the measures and their means of the implementations, 
 If you found these codes useful for your research, please consider citing MLography.
 
 # Instructions
+## Requirments
+You may use the file *MLographyENV* to create anaconda environment with the required packages. To build the package run:
+```
+conda create --name <env_name> --file MLographyENV
+```
+Then, activate your environment:
+```
+conda activate <env_name>
+```
+And install *ray*:
+```
+pip install ray
+```
+
 ## Running
 
 There are several scripts:
