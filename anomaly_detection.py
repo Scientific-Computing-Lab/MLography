@@ -33,6 +33,7 @@ with warnings.catch_warnings():
 
 
     flags.DEFINE_string("input_scans", './tags_png_cropped/*.png', "Pattern to find input scan images")
+    flags.DEFINE_boolean("black_background", True, "True is the background is black and impurities are white, False otherwise")
     flags.DEFINE_string("area_anomaly_dir", "./logs/area/", "Directory for area anomaly output")
     flags.DEFINE_string("clusters_scores_log", None, "clusters scores log file")
     flags.DEFINE_string("ordered_clusters_scores", None, "ordered clusters scores log file")
@@ -227,7 +228,7 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
 
 
 def extract_impurities_and_detect_anomaly(img_path, model=None, need_to_write_for_ae=False):
-    img, ret, markers, imp_boxes, areas, indices = extract_impurities(img_path, FLAGS.use_ray, FLAGS.min_threshold)
+    img, ret, markers, imp_boxes, areas, indices = extract_impurities(img_path, FLAGS.use_ray, FLAGS.min_threshold, FLAGS.black_background)
     area_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, model, FLAGS.area_anomaly_dir,
                            need_to_write_for_ae)
 

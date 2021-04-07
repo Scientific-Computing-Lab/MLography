@@ -185,8 +185,10 @@ def normalize_all_impurities(dir_path):
                                               )
 
 
-def extract_impurities(img_path, use_ray, min_threshold=0):
+def extract_impurities(img_path, use_ray, min_threshold=0, black_background=True):
     img = cv.imread(img_path)
+    if black_background:
+        img = 255 - img
     img_name = os.path.splitext(os.path.basename(img_path))[0]
     ret, markers = get_markers(img, min_threshold, img_name)
     if use_ray:

@@ -6,3 +6,4 @@ model_ae.h5
 model_ae_extended.h5
 model_backup.h5
 data/
+Segmentation/generative_inpainting
