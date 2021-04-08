@@ -7,3 +7,5 @@ model_ae_extended.h5
 model_backup.h5
 data/
 Segmentation/generative_inpainting
+Segmentation/unet/preprocessed_imgs.hdf5
+Segmentation/unet/grains_128.hdf5
