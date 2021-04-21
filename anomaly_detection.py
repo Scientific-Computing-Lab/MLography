@@ -39,6 +39,7 @@ with warnings.catch_warnings():
     flags.DEFINE_string("ordered_clusters_scores", None, "ordered clusters scores log file")
     flags.DEFINE_string("order_histogram", None, "Directory with all order histograms")
     flags.DEFINE_string("plots_dir", None, "Directory with all plots")
+    flags.DEFINE_string("plot_shape_and_spatial", None, "Directory of anomalies of individual impurities")
     flags.DEFINE_string("save_ordered_dir", None, "Directory with all ordered clusters plots")
 
     flags.DEFINE_string("model_name", "./model_ae_extended.h5", "Path for Autoencoder model")
@@ -126,7 +127,7 @@ def shape_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, d
 
 # split to smaller functions, and move to shape_anomaly.py
 def shape_and_spatial_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, dest_path,
-                                        scan_name, model, need_plot=False, wkthnn_k_list=None, need_to_write=False):
+                                        scan_name, model, need_plot=False, wkthnn_k_list=None, need_to_write=False, plot_shape_and_spatial=None):
 
     norm_reconstruct_loss = shape_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, dest_path,
                                                     scan_name, model, need_to_write)
@@ -140,21 +141,22 @@ def shape_and_spatial_anomaly_detection(img, img_path, markers, imp_boxes, areas
         combined_scores = impurity_neighbors_and_area[k][:] * norm_reconstruct_loss[:]
         norm_combined_scores[k] = (combined_scores - np.min(combined_scores)) / np.ptp(combined_scores)
 
-    if need_plot:
+    if need_plot or plot_shape_and_spatial is not None:
         color_shape_and_spatial_anomaly(imp_boxes, img, markers, wkthnn_k_list, areas, indices, norm_reconstruct_loss,
-                                        impurity_neighbors_and_area)
+                                        impurity_neighbors_and_area, plot_shape_and_spatial)
     return norm_combined_scores
 
 
 def area_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, model, area_anomaly_dir,
-                           need_to_write_for_ae=False):
+                           need_to_write_for_ae=False, plot_shape_and_spatial=None):
     if not os.path.exists(area_anomaly_dir):
         os.makedirs(area_anomaly_dir)
     path_base_name = os.path.basename(img_path)
     name_without_ext = os.path.splitext(path_base_name)[0]
     scores = shape_and_spatial_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, "./data/test_" +
                                                  name_without_ext + "/", scan_name=name_without_ext + "/",
-                                                 model=model, need_plot=False, need_to_write=need_to_write_for_ae)
+                                                 model=model, need_plot=False, 
+                                                 need_to_write=need_to_write_for_ae, plot_shape_and_spatial=plot_shape_and_spatial)
 
     mc = MarketClustering(img.shape, indices, markers, imp_boxes, scores[50][:], k=10)
     mc.make_clusters()
@@ -164,7 +166,7 @@ def area_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, mo
 
 
 def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indices, shape_scores,
-                                    impurity_neighbors_and_area):
+                                    impurity_neighbors_and_area, plot_path=None):
 
     blank_image = {}
     blank_image_s = {}
@@ -204,33 +206,36 @@ def color_shape_and_spatial_anomaly(imp_boxes, img, markers, k_list, areas, indi
         plt.clim(0, 1)
         plt.title("k = " + str(k_list[i]) + ", Shape and Spatial anomalies combined")
 
-        plt.figure("Shape anomaly")
-        plt.imshow(blank_image_s[k_list[i]], cmap='jet')
-        plt.colorbar()
-        plt.clim(0, 1)
-        plt.title("Shape anomaly")
+        if plot_path is None:
+            plt.figure("Shape anomaly")
+            plt.imshow(blank_image_s[k_list[i]], cmap='jet')
+            plt.colorbar()
+            plt.clim(0, 1)
+            plt.title("Shape anomaly")
+    
+            plt.figure("k = " + str(k_list[i]) + ", Spatial anomaly")
+            plt.imshow(blank_image_l[k_list[i]], cmap='jet')
+            plt.colorbar()
+            plt.clim(0, 1)
+            plt.title("k = " + str(k_list[i]) + ", Spatial anomaly")
+    
+            plt.figure("Input")
+            plt.imshow(img)
+            plt.title("Input")
 
-        plt.figure("k = " + str(k_list[i]) + ", Spatial anomaly")
-        plt.imshow(blank_image_l[k_list[i]], cmap='jet')
-        plt.colorbar()
-        plt.clim(0, 1)
-        plt.title("k = " + str(k_list[i]) + ", Spatial anomaly")
-
-        plt.figure("Input")
-        plt.imshow(img)
-        plt.title("Input")
-
-    plt.show()
-
-    # cv.imwrite('anomaly_detection.png', blank_image[k_list[0]])
+    if plot_path is None:
+        plt.show()
+    else:
+        plt.savefig(plot_path)
+        # cv.imwrite(plot_path, blank_image[k_list[0]])
     # cv.imwrite('SHAPE_anomaly_detection.png', blank_image_s[k_list[0]])
     # cv.imwrite('LOCAL_anomaly_detection.png', blank_image_l[k_list[0]])
 
 
-def extract_impurities_and_detect_anomaly(img_path, model=None, need_to_write_for_ae=False):
+def extract_impurities_and_detect_anomaly(img_path, model=None, need_to_write_for_ae=False, plot_shape_and_spatial=None):
     img, ret, markers, imp_boxes, areas, indices = extract_impurities(img_path, FLAGS.use_ray, FLAGS.min_threshold, FLAGS.black_background)
     area_anomaly_detection(img, img_path, markers, imp_boxes, areas, indices, model, FLAGS.area_anomaly_dir,
-                           need_to_write_for_ae)
+                           need_to_write_for_ae, plot_shape_and_spatial)
 
 
 def extract_impurities_and_detect_shape_spatial_anomaly(img_path, model=None, need_to_write_for_ae=False):
@@ -269,7 +274,11 @@ def main(_):
 
         for file in files:
             if not os.path.exists(FLAGS.plots_dir + "/" + os.path.basename(file)):
-                extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True)
+                if FLAGS.plot_shape_and_spatial is not None:
+                    plot_shape_and_spatial = FLAGS.plot_shape_and_spatial + "/" + os.path.basename(file)
+                else:
+                    plot_shape_and_spatial = None
+                extract_impurities_and_detect_anomaly(file, model=model, need_to_write_for_ae=True, plot_shape_and_spatial=plot_shape_and_spatial)
                 gc.collect()
 
     if FLAGS.order:
