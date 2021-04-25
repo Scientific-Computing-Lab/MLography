@@ -47,7 +47,7 @@ In the following anomaly detection output examples of metallographic scans, red 
 
 # Citation
 For more information about the measures and their means of the implementations, please refer to the paper.
-If you found these codes useful for your research, please consider citing MLography.
+If you found these codes useful for your research, please consider citing: https://arxiv.org/abs/2104.11159
 
 # Instructions
 ## Requirments
