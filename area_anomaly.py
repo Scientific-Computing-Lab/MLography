@@ -340,6 +340,24 @@ class MarketClustering:
             json.dump(data, json_file)
             json_file.flush()
 
+            pre, ext = os.path.splitext(scan_name)
+            self.impurities_pixels_info(plots_dir + "/impurities_info_" + pre + ".npy")
+
+    def impurities_pixels_info(self, impurities_pixels_info_path):
+        # 2 values: impurity id, impurity score
+        pixels_out = np.full((self.img_shape[0], self.img_shape[1], 2), -1., dtype=float)
+        for i in range(len(self.anomaly_scores)):
+            imp_id = int(i)
+            imp_score = self.anomaly_scores[i]
+            argw = np.argwhere(self.markers == imp_id + 2)
+            argws = np.split(argw, 2, 1)
+            pixels_out[argws[0][:, 0], argws[1][:, 0], :] = [imp_id, imp_score]
+
+        # with open(impurities_pixels_info_path, 'w') as f:
+        np.save(impurities_pixels_info_path, pixels_out)
+
+
+
     def color_clusters(self, show_fig=True, save_plot_path=None):
         blank_image = np.zeros(self.img_shape, np.uint8)
         blank_image[:, :] = (255, 255, 255)
@@ -401,8 +419,45 @@ def create_sub_histogram(histograms_sub_dir, name, scores):
     plt.close()
 
 
+def cluster_impurities_info(cluster_json, sorted_clusters_json, clusters_info_path,
+                            order_name="weighted_area2_sum_mult_diameter_mult_amount"):
+
+    if os.path.exists(clusters_info_path):
+        with open(clusters_info_path, "r") as clusters_info_json_file:
+            cluster_info = json.load(clusters_info_json_file)
+    else:
+        cluster_info = {}
+
+    for order in sorted_clusters_json:
+        if order["key_name"] == order_name:
+            sorted_clusters_json_by_key = order
+
+    for scan in cluster_json:
+        impurities_json = {}
+        for cluster in scan['clusters']:
+            for impurity in cluster['impurities']:
+                impurities_info = {}
+                impurities_info['score'] = impurity['score']
+                impurities_info['cluster_name'] = cluster['cluster_name']
+                for cluster_id, sorted_cluster in enumerate(sorted_clusters_json_by_key['sorted_clusters']):
+                    if sorted_cluster['cluster_name'] == cluster['cluster_name']:
+                        impurities_info['cluster_num_in_order'] = cluster_id
+                        impurities_info['cluster_score'] = sorted_cluster['score']
+                        impurities_info['cluster_norm_score'] = sorted_cluster['norm_score']
+                        for perc in sorted_clusters_json_by_key["percentiles"]:
+                            if (sorted_cluster["norm_score"] >= perc["lower"]) and (
+                                    sorted_cluster["norm_score"] < perc["upper"] + np.finfo(float).eps):
+                                impurities_info['cluster_perc'] = perc["value"]
+                impurities_json[impurity['id']] = impurities_info
+
+            cluster_info[scan['scan_name']] = impurities_json
+
+    with open(clusters_info_path, "w") as clusters_info_file:
+        json.dump(cluster_info, clusters_info_file)
+        clusters_info_file.flush()
+
 def order_clusters(anomaly_clusters_json_file, ordered_clusters_json_file, order_histograms_path=None, order_keys=None,
-                   save_ordered_dir="./logs/area/ordered_clusters"):
+                   save_ordered_dir="./logs/area/ordered_clusters", clusters_info_path="./logs/area/clusters_impurities_info.txt"):
     if not os.path.exists(order_histograms_path):
         os.makedirs(order_histograms_path)
     if not os.path.exists(save_ordered_dir):
@@ -477,6 +532,9 @@ def order_clusters(anomaly_clusters_json_file, ordered_clusters_json_file, order
         gc.collect()
     with open(ordered_clusters_json_file, "w") as ordered_json_file:
         json.dump(sorted_clusters_json, ordered_json_file)
+
+    cluster_impurities_info(data, sorted_clusters_json, clusters_info_path,
+                            order_name="weighted_area2_sum_mult_diameter_mult_amount")
     return sorted_clusters
 
 
@@ -539,6 +597,26 @@ def color_sorted_clusters_not_parallel(sorted_clusters, top_to_show=150, show_fi
             figure.set_size_inches(30, 20)
             plt.savefig(save_ordered_dir+"/"+str(cluster_id)+".png")
 
+def clusters_pixels_info(ordered_clusters_json, order_name, scan_file_name, clusters_pixels_info_path):
+    input_scan_name = os.path.splitext(os.path.basename(scan_file_name))[0]
+    pixels_to_clusters_info = {}
+    for order in ordered_clusters_json:
+        if order["key_name"] == order_name:
+            for cluster_id, cluster in enumerate(order["sorted_clusters"]):
+                if os.path.splitext(os.path.basename(cluster["path"]))[0] == input_scan_name:
+                    for perc in order["percentiles"]:
+                        if (cluster["norm_score"] >= perc["lower"]) and (cluster["norm_score"] < perc["upper"] + np.finfo(float).eps):
+                            score = {}
+                            score["rank"] = cluster_id
+                            score["score"] = cluster["norm_score"]
+                            score["range"] = perc["value"]
+                            score["name"] = cluster["cluster_name"]
+                            for impurity in cluster["impurities_inside"]:
+                                pixels_to_clusters_info[impurity] = score
+
+    with open(clusters_pixels_info_path, 'wb') as f:
+        json.dump(pixels_to_clusters_info, f)
+        f.flush()
 
 def print_clusters_of_img_in_order(ordered_clusters_json_file, order_name, scan_file_name):
     input_scan_name = os.path.splitext(os.path.basename(scan_file_name))[0]
